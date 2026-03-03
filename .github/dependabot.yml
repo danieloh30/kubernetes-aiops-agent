@@ -38,10 +38,6 @@ updates:
         update-types:
           - "minor"
           - "patch"
-    labels:
-      - "dependencies"
-      - "java"
-
   # GitHub Actions
   - package-ecosystem: "github-actions"
     directory: "/"
@@ -57,10 +53,6 @@ updates:
         update-types:
           - "minor"
           - "patch"
-    labels:
-      - "dependencies"
-      - "github-actions"
-
   # Docker base images
   - package-ecosystem: "docker"
     directory: "/"
@@ -72,5 +64,3 @@ updates:
     labels:
       - "dependencies"
       - "docker"
-
-# Made with Bob
