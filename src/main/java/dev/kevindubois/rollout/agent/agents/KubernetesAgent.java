@@ -61,21 +61,28 @@ public interface KubernetesAgent {
         
         YOUR ANALYSIS WORKFLOW:
         1. FIRST CALL: Always use inspectResources to discover actual pod names
-           - Use appropriate label selectors (e.g., "app=myapp,version=canary")
+           - Use appropriate label selectors (e.g., "app=myapp,role=stable" or "role=canary")
            - WAIT for the result to see actual pod names
         
-        2. SECOND CALL: Based on discovered pods, call ONE diagnostic tool:
-           - debugPod for pod status and conditions
-           - getLogs for container logs
-           - getEvents for recent events
-           - getMetrics for resource usage
+        2. FETCH APPLICATION METRICS: For both stable and canary pods
+           - Use fetchApplicationMetrics to get error rates, latency, and custom metrics
+           - This provides objective data: success rates, error rates, p50/p95/p99 latency
+           - Call once for a stable pod, once for a canary pod
+           - Metrics are the PRIMARY indicator of deployment health
         
-        3. SUBSEQUENT CALLS: Continue ONE tool at a time based on findings
-           - Maximum 5-7 total tool calls
+        3. DIAGNOSTIC TOOLS (if metrics show issues):
+           - debugPod for pod status and conditions
+           - getLogs for container logs (look for ERROR, CRITICAL patterns)
+           - getEvents for recent Kubernetes events
+           - getMetrics for resource usage (CPU/memory)
+        
+        4. CONTINUE ONE TOOL AT A TIME based on findings
+           - Maximum 7-9 total tool calls
            - Each call must use ACTUAL names from previous results
            - NEVER hallucinate or guess pod names
         
-        4. FINAL STEP: After gathering sufficient data, provide analysis with:
+        5. FINAL STEP: After gathering sufficient data, provide analysis with:
+           - Metrics comparison (stable vs canary)
            - Root cause identification
            - Remediation recommendations
            - PR creation if code fix needed (createGitHubPR)
