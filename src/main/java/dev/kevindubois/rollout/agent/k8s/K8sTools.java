@@ -618,5 +618,161 @@ public class K8sTools {
         
         return labels;
     }
+
+    /**
+     * Fetch application metrics from a pod's Prometheus metrics endpoint
+     * @param namespace The Kubernetes namespace where the pod is located
+     * @param podName The exact name of the pod to fetch metrics from
+     * @param metricsPath The path to the metrics endpoint (default: /q/metrics)
+     * @param port The port number for the metrics endpoint (default: 8080)
+     */
+    @Tool("Fetch application metrics from a pod's Prometheus metrics endpoint. Returns error rates, request counts, latency, and custom application metrics.")
+    public Map<String, Object> fetchApplicationMetrics(String namespace, String podName, String metricsPath, Integer port) {
+        Log.info("=== Executing Tool: fetchApplicationMetrics ===");
+        
+        if (namespace == null || namespace.isEmpty() || podName == null || podName.isEmpty()) {
+            return Map.of("error", "namespace and podName are required and cannot be empty");
+        }
+        
+        String path = (metricsPath != null && !metricsPath.isEmpty()) ? metricsPath : "/q/metrics";
+        int targetPort = (port != null && port > 0) ? port : 8080;
+        
+        Log.info(MessageFormat.format("Fetching application metrics from pod: {0}/{1} at {2}:{3}",
+                namespace, podName, path, targetPort));
+        
+        try {
+            Pod pod = k8sClient.pods()
+                .inNamespace(namespace)
+                .withName(podName)
+                .get();
+            
+            if (pod == null) {
+                return Map.of("error", MessageFormat.format("Pod not found: {0}/{1}", namespace, podName));
+            }
+            
+            String podIP = pod.getStatus().getPodIP();
+            if (podIP == null || podIP.isEmpty()) {
+                return Map.of("error", "Pod IP not available - pod may not be running");
+            }
+            
+            try {
+                String metricsUrl = MessageFormat.format("http://{0}:{1}{2}", podIP, targetPort, path);
+                Log.info(MessageFormat.format("Fetching metrics from URL: {0}", metricsUrl));
+                
+                java.net.http.HttpClient client = java.net.http.HttpClient.newBuilder()
+                    .connectTimeout(java.time.Duration.ofSeconds(5))
+                    .build();
+                
+                java.net.http.HttpRequest request = java.net.http.HttpRequest.newBuilder()
+                    .uri(java.net.URI.create(metricsUrl))
+                    .timeout(java.time.Duration.ofSeconds(10))
+                    .GET()
+                    .build();
+                
+                java.net.http.HttpResponse<String> response = client.send(request,
+                    java.net.http.HttpResponse.BodyHandlers.ofString());
+                
+                if (response.statusCode() != 200) {
+                    return Map.of(
+                        "error", "Failed to fetch metrics",
+                        "statusCode", response.statusCode()
+                    );
+                }
+                
+                Map<String, Object> parsedMetrics = parsePrometheusMetrics(response.body());
+                parsedMetrics.put("namespace", namespace);
+                parsedMetrics.put("podName", podName);
+                parsedMetrics.put("podIP", podIP);
+                
+                Log.info(MessageFormat.format("Successfully fetched metrics from pod: {0}/{1}", namespace, podName));
+                return parsedMetrics;
+                
+            } catch (java.io.IOException | InterruptedException e) {
+                Log.error("Error fetching metrics from pod", e);
+                return Map.of(
+                    "error", "Failed to connect to pod metrics endpoint",
+                    "details", e.getMessage(),
+                    "podIP", podIP
+                );
+            }
+            
+        } catch (Exception e) {
+            Log.error("Error fetching application metrics", e);
+            return Map.of("error", e.getMessage());
+        }
+    }
+
+    private Map<String, Object> parsePrometheusMetrics(String metricsText) {
+        Map<String, Object> metrics = new HashMap<>();
+        
+        String[] lines = metricsText.split("\n");
+        for (String line : lines) {
+            if (line.startsWith("#") || line.trim().isEmpty()) {
+                continue;
+            }
+            
+            try {
+                int spaceIndex = line.lastIndexOf(' ');
+                if (spaceIndex > 0) {
+                    String metricPart = line.substring(0, spaceIndex);
+                    String value = line.substring(spaceIndex + 1);
+                    
+                    if (metricPart.startsWith("http_requests_total")) {
+                        metrics.put("totalRequests", Double.parseDouble(value));
+                    } else if (metricPart.startsWith("http_requests_success_total")) {
+                        metrics.put("successfulRequests", Double.parseDouble(value));
+                    } else if (metricPart.startsWith("http_requests_error_total")) {
+                        metrics.put("errorRequests", Double.parseDouble(value));
+                    } else if (metricPart.startsWith("http_requests_success_rate")) {
+                        metrics.put("successRate", Double.parseDouble(value) * 100);
+                    } else if (metricPart.contains("http_request_duration_seconds") && metricPart.contains("quantile=\"0.5\"")) {
+                        metrics.put("latencyP50Ms", Double.parseDouble(value) * 1000);
+                    } else if (metricPart.contains("http_request_duration_seconds") && metricPart.contains("quantile=\"0.95\"")) {
+                        metrics.put("latencyP95Ms", Double.parseDouble(value) * 1000);
+                    } else if (metricPart.contains("http_request_duration_seconds") && metricPart.contains("quantile=\"0.99\"")) {
+                        metrics.put("latencyP99Ms", Double.parseDouble(value) * 1000);
+                    } else if (metricPart.contains("http_request_duration_seconds_sum")) {
+                        metrics.put("latencySumSeconds", Double.parseDouble(value));
+                    } else if (metricPart.contains("http_request_duration_seconds_count")) {
+                        metrics.put("latencyCount", Double.parseDouble(value));
+                    } else if (metricPart.startsWith("app_version_info") && metricPart.contains("version=\"")) {
+                        int versionStart = metricPart.indexOf("version=\"") + 9;
+                        int versionEnd = metricPart.indexOf("\"", versionStart);
+                        if (versionEnd > versionStart) {
+                            metrics.put("version", metricPart.substring(versionStart, versionEnd));
+                        }
+                        if (metricPart.contains("scenario=\"")) {
+                            int scenarioStart = metricPart.indexOf("scenario=\"") + 10;
+                            int scenarioEnd = metricPart.indexOf("\"", scenarioStart);
+                            if (scenarioEnd > scenarioStart) {
+                                metrics.put("scenario", metricPart.substring(scenarioStart, scenarioEnd));
+                            }
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                Log.debug("Failed to parse metric line: " + line, e);
+            }
+        }
+        
+        if (metrics.containsKey("totalRequests") && metrics.containsKey("successfulRequests")) {
+            double total = (Double) metrics.get("totalRequests");
+            double successful = (Double) metrics.get("successfulRequests");
+            if (total > 0) {
+                metrics.put("calculatedSuccessRate", (successful / total) * 100);
+                metrics.put("errorRate", ((total - successful) / total) * 100);
+            }
+        }
+        
+        if (metrics.containsKey("latencySumSeconds") && metrics.containsKey("latencyCount")) {
+            double sum = (Double) metrics.get("latencySumSeconds");
+            double count = (Double) metrics.get("latencyCount");
+            if (count > 0) {
+                metrics.put("latencyMeanMs", (sum / count) * 1000);
+            }
+        }
+        
+        return metrics;
+    }
 }
 
