@@ -6,7 +6,6 @@ import io.fabric8.kubernetes.api.model.apps.Deployment;
 import io.fabric8.kubernetes.api.model.metrics.v1beta1.PodMetrics;
 import io.fabric8.kubernetes.client.KubernetesClient;
 import io.quarkus.logging.Log;
-import io.quarkus.virtual.threads.VirtualThreads;
 import io.smallrye.common.annotation.RunOnVirtualThread;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -241,10 +240,31 @@ public class K8sTools {
                 return Map.of("error", errorMsg);
             }
             
-            // If no container name specified, check if pod has multiple containers
-            String targetContainer = containerName;
-            if (targetContainer == null || targetContainer.isEmpty()) {
-                List<Container> containers = pod.getSpec().getContainers();
+            // Validate and auto-detect container name if needed
+            List<Container> containers = pod.getSpec().getContainers();
+            String targetContainer;
+            
+            // If container name is provided, verify it exists in the pod
+            if (containerName != null && !containerName.isEmpty()) {
+                final String requestedContainer = containerName;
+                boolean containerExists = containers.stream()
+                    .anyMatch(c -> c.getName().equals(requestedContainer));
+                
+                if (!containerExists) {
+                    Log.warn(MessageFormat.format("Container ''{0}'' not found in pod. Available containers: {1}. Auto-detecting...",
+                        requestedContainer,
+                        containers.stream().map(Container::getName).collect(Collectors.joining(", "))));
+                    // Fall through to auto-detection
+                    targetContainer = null;
+                } else {
+                    targetContainer = containerName;
+                }
+            } else {
+                targetContainer = null;
+            }
+            
+            // If no container name specified or invalid name provided, auto-detect
+            if (targetContainer == null) {
                 if (containers != null && containers.size() > 1) {
                     // Multi-container pod - default to the first non-sidecar container
                     // Typically istio-proxy, envoy, etc. are sidecars
@@ -259,6 +279,7 @@ public class K8sTools {
                     Log.info(MessageFormat.format("Multi-container pod detected. Using container: {0}", targetContainer));
                 } else if (containers != null && !containers.isEmpty()) {
                     targetContainer = containers.get(0).getName();
+                    Log.info(MessageFormat.format("Single-container pod. Using container: {0}", targetContainer));
                 }
             }
             
@@ -848,7 +869,9 @@ public class K8sTools {
                         stableInfo.put("readyContainers", readyCount + "/" + stablePod.getStatus().getContainerStatuses().size());
                     }
                     
-                    Map<String, Object> logsResult = getLogs(namespace, stablePod.getMetadata().getName(), containerName, false, lines);
+                    // Pass null/empty to let getLogs auto-detect the correct container name
+                    String actualContainerName = (containerName != null && !containerName.isEmpty()) ? containerName : null;
+                    Map<String, Object> logsResult = getLogs(namespace, stablePod.getMetadata().getName(), actualContainerName, false, lines);
                     if (logsResult.containsKey("logs")) {
                         stableInfo.put("logs", logsResult.get("logs"));
                     } else if (logsResult.containsKey("error")) {
@@ -875,7 +898,9 @@ public class K8sTools {
                         canaryInfo.put("readyContainers", readyCount + "/" + canaryPod.getStatus().getContainerStatuses().size());
                     }
                     
-                    Map<String, Object> logsResult = getLogs(namespace, canaryPod.getMetadata().getName(), containerName, false, lines);
+                    // Pass null/empty to let getLogs auto-detect the correct container name
+                    String actualContainerName = (containerName != null && !containerName.isEmpty()) ? containerName : null;
+                    Map<String, Object> logsResult = getLogs(namespace, canaryPod.getMetadata().getName(), actualContainerName, false, lines);
                     if (logsResult.containsKey("logs")) {
                         canaryInfo.put("logs", logsResult.get("logs"));
                     } else if (logsResult.containsKey("error")) {
