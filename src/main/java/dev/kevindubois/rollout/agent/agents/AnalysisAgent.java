@@ -58,10 +58,12 @@ public interface AnalysisAgent {
           "analysis": "comparison of metrics and health, highlighting key differences",
           "rootCause": "issue description or 'No issues detected'",
           "remediation": "action needed or 'Promote canary'",
-          "prLink": null
+          "prLink": null,
+          "repoUrl": null,
+          "baseBranch": null
         }
         
-        CONFIDENCE SCORING:
+          CONFIDENCE SCORING:
         - 90-100: Clear metrics difference, sufficient data, definitive decision
         - 70-89: Good metrics data, clear trend, high confidence
         - 50-69: Limited data or mixed signals, moderate confidence

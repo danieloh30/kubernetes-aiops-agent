@@ -78,20 +78,24 @@ public class GitHubIssueTool {
             // Build issue body
             String issueBody = generateIssueBody(description, rootCause, namespace, podName);
             
-            // Parse labels and assignees
-            String[] labelArray = (labels != null && !labels.isEmpty()) 
-                ? labels.split(",") 
+            // Parse labels and assignees with defensive sanitization
+            // Strip out any brackets, quotes, or JSON-like formatting that LLM might add
+            String sanitizedLabels = sanitizeInput(labels);
+            String sanitizedAssignees = sanitizeInput(assignees);
+            
+            String[] labelArray = (sanitizedLabels != null && !sanitizedLabels.isEmpty())
+                ? sanitizedLabels.split(",")
                 : new String[0];
-            String[] assigneeArray = (assignees != null && !assignees.isEmpty()) 
-                ? assignees.split(",") 
+            String[] assigneeArray = (sanitizedAssignees != null && !sanitizedAssignees.isEmpty())
+                ? sanitizedAssignees.split(",")
                 : new String[0];
             
-            // Trim whitespace from labels and assignees
+            // Trim whitespace and remove any remaining quotes from labels and assignees
             for (int i = 0; i < labelArray.length; i++) {
-                labelArray[i] = labelArray[i].trim();
+                labelArray[i] = labelArray[i].trim().replaceAll("^\"|\"$", "");
             }
             for (int i = 0; i < assigneeArray.length; i++) {
-                assigneeArray[i] = assigneeArray[i].trim();
+                assigneeArray[i] = assigneeArray[i].trim().replaceAll("^@", "");
             }
             
             // Create issue request
@@ -170,5 +174,23 @@ public class GitHubIssueTool {
             namespace,
             podName
         );
+    }
+    
+    /**
+     * Sanitize input by removing JSON-like formatting that LLM might add
+     * Strips brackets, quotes, and other special characters
+     */
+    private String sanitizeInput(String input) {
+        if (input == null || input.isEmpty()) {
+            return input;
+        }
+        
+        // Remove square brackets, curly braces, and quotes
+        // This handles cases like: ["label1","label2"], [label1,label2], "label1","label2"
+        return input
+            .replaceAll("[\\[\\]{}]", "")  // Remove brackets and braces
+            .replaceAll("\"", "")           // Remove all quotes
+            .replaceAll("'", "")            // Remove single quotes
+            .trim();
     }
 }

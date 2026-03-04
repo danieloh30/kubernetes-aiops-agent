@@ -38,6 +38,13 @@ public class KubernetesAgentResource {
         Log.info(MessageFormat.format("Received analysis request from user: {0}", request.userId()));
         
         try {
+            // Extract context values for later use
+            Map<String, Object> context = request.context();
+            String repoUrl = context != null ? (String) context.get("repoUrl") : null;
+            String baseBranch = context != null ? (String) context.get("baseBranch") : "main";
+            
+            Log.info(MessageFormat.format("Context - repoUrl: {0}, baseBranch: {1}", repoUrl, baseBranch));
+            
             // Build prompt with context
             String prompt = buildPrompt(request);
             Log.debug(MessageFormat.format("Built prompt: {0}", prompt));
@@ -52,9 +59,23 @@ public class KubernetesAgentResource {
             
             // Execute multi-agent workflow with retry logic for transient errors
             AnalysisResult analysisResult = RetryHelper.executeWithRetryOnTransientErrors(
-                () -> kubernetesWorkflow.execute(memoryId, prompt),
+                () -> kubernetesWorkflow.execute(memoryId, prompt, repoUrl, baseBranch),
                 "Multi-agent workflow analysis"
             );
+            
+            // Add context to result if not already present (fallback mechanism)
+            if (analysisResult.repoUrl() == null && repoUrl != null) {
+                analysisResult = new AnalysisResult(
+                    analysisResult.promote(),
+                    analysisResult.confidence(),
+                    analysisResult.analysis(),
+                    analysisResult.rootCause(),
+                    analysisResult.remediation(),
+                    analysisResult.prLink(),
+                    repoUrl,
+                    baseBranch
+                );
+            }
             
             // Validate PR link is not hallucinated
             if (analysisResult.prLink() != null && isHallucinatedUrl(analysisResult.prLink())) {
@@ -65,7 +86,9 @@ public class KubernetesAgentResource {
                     analysisResult.analysis(),
                     analysisResult.rootCause(),
                     analysisResult.remediation(),
-                    null  // Clear hallucinated link
+                    null,  // Clear hallucinated link
+                    analysisResult.repoUrl(),
+                    analysisResult.baseBranch()
                 );
             }
             
