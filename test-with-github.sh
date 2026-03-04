@@ -6,8 +6,8 @@ set -e
 
 # Configuration - CUSTOMIZE THESE
 AGENT_URL="${AGENT_URL:-http://localhost:8080}"
-GITHUB_REPO="${GITHUB_REPO:-kdubois/demo-app}"  # Change to your test repo
-NAMESPACE="${NAMESPACE:-argo-rollouts}"
+GITHUB_REPO="${GITHUB_REPO:-kdubois/argo-rollouts-quarkus-demo}"  # Change to your test repo
+NAMESPACE="${NAMESPACE:-openshift-gitops}"
 POD_NAME="${POD_NAME:-demo-app-canary-abc123}"
 
 echo "🚀 Testing Kubernetes AI Agent with GitHub PR Creation"
@@ -36,12 +36,13 @@ cat > /tmp/github-test-request.json <<EOF
   "context": {
     "namespace": "$NAMESPACE",
     "podName": "$POD_NAME",
-    "rolloutName": "demo-app",
+    "rolloutName": "quarkus-demo",
     "canaryVersion": "v2.1.0",
     "stableVersion": "v2.0.0",
     "failureReason": "CrashLoopBackOff",
     "errorRate": 0.95,
     "repoUrl": "https://github.com/$GITHUB_REPO",
+    "baseBranch": "main",
     "logs": "2024-01-15T10:30:45Z ERROR Failed to connect to database\\n2024-01-15T10:30:45Z ERROR Connection refused: localhost:5432\\n2024-01-15T10:30:45Z INFO Using database host from env: localhost\\n2024-01-15T10:30:45Z FATAL Application startup failed\\n2024-01-15T10:30:45Z ERROR Exit code: 1",
     "podStatus": {
       "phase": "Running",
