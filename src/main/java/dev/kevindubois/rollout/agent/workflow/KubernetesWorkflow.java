@@ -5,10 +5,9 @@ import dev.kevindubois.rollout.agent.agents.RemediationAgent;
 import dev.kevindubois.rollout.agent.model.AnalysisResult;
 import dev.langchain4j.service.MemoryId;
 import dev.langchain4j.service.UserMessage;
+import dev.langchain4j.service.V;
 import dev.langchain4j.agentic.declarative.SequenceAgent;
-import io.quarkiverse.langchain4j.RegisterAiService;
 
-@RegisterAiService
 public interface KubernetesWorkflow {
     
     @SequenceAgent(
@@ -20,7 +19,10 @@ public interface KubernetesWorkflow {
             RemediationAgent.class
         }
     )
-    AnalysisResult execute(@MemoryId String memoryId, @UserMessage String message);
+    AnalysisResult execute(
+        @MemoryId String memoryId,
+        @UserMessage String message,
+        @V("repoUrl") String repoUrl,
+        @V("baseBranch") String baseBranch
+    );
 }
-
-// Made with Bob

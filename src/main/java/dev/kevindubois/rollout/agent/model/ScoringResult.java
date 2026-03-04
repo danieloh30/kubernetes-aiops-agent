@@ -14,4 +14,3 @@ public record ScoringResult(
     }
 }
 
-// Made with Bob

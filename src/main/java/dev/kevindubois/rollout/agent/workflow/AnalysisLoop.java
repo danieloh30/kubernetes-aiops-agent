@@ -25,4 +25,3 @@ public interface AnalysisLoop {
     }
 }
 
-// Made with Bob

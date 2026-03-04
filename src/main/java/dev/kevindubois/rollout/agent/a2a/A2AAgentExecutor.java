@@ -56,8 +56,13 @@ public class A2AAgentExecutor {
                     String memoryId = extractMemoryId(context);
                     Log.debug(MessageFormat.format("Using memory ID: {0}", memoryId));
                     
+                    // Extract context values from message metadata
+                    String repoUrl = extractFromMetadata(context.getMessage(), "repoUrl");
+                    String baseBranch = extractFromMetadata(context.getMessage(), "baseBranch", "main");
+                    Log.debug(MessageFormat.format("Context - repoUrl: {0}, baseBranch: {1}", repoUrl, baseBranch));
+                    
                     // Execute the workflow
-                    AnalysisResult result = workflow.execute(memoryId, messageContent);
+                    AnalysisResult result = workflow.execute(memoryId, messageContent, repoUrl, baseBranch);
                     Log.info("Workflow executed successfully");
                     
                     // Format the response
@@ -145,6 +150,26 @@ public class A2AAgentExecutor {
                 // Last resort
                 Log.warn("No memory identifier found, using 'default'. Conversation history will be shared across all sessions.");
                 return "default";
+            }
+            
+            /**
+             * Extract a value from message metadata
+             */
+            private String extractFromMetadata(Message message, String key) {
+                return extractFromMetadata(message, key, null);
+            }
+            
+            /**
+             * Extract a value from message metadata with default
+             */
+            private String extractFromMetadata(Message message, String key, String defaultValue) {
+                if (message.getMetadata() != null) {
+                    Object value = message.getMetadata().get(key);
+                    if (value != null) {
+                        return value.toString();
+                    }
+                }
+                return defaultValue;
             }
             
             /**
