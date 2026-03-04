@@ -18,9 +18,10 @@ if [[ "$MODE" != "k8s" && "$MODE" != "local" ]]; then
 fi
 
 # Configuration
-AGENT_NAMESPACE="argo-rollouts"
-TEST_NAMESPACE="${NAMESPACE:-default}"
-TEST_POD_NAME="${POD_NAME:-test-pod}"
+AGENT_NAMESPACE="openshift-gitops"
+GITHUB_REPO="${GITHUB_REPO:-kdubois/argo-rollouts-quarkus-demo}"
+TEST_NAMESPACE="${NAMESPACE:-quarkus-demo}"
+TEST_POD_NAME="${POD_NAME:-quarkus-demo-canary-abc123}"
 CONTEXT="${CONTEXT:-}"  # Use current context if not specified
 LOCAL_URL="${LOCAL_URL:-http://localhost:8080}"
 
@@ -93,9 +94,9 @@ REQUEST_PAYLOAD=$(cat <<EOF
   "context": {
     "namespace": "$TEST_NAMESPACE",
     "podName": "$TEST_POD_NAME",
-    "rolloutName": "test-rollout",
-    "canaryVersion": "v2",
-    "stableVersion": "v1",
+    "rolloutName": "quarkus-demo",
+    "canaryVersion": "v2.1.0",
+    "stableVersion": "v2.0.0",
     "failureReason": "CrashLoopBackOff",
     "logs": "Error: Cannot connect to database at localhost:5432\\nConnection refused\\nExiting...",
     "events": [
@@ -105,7 +106,8 @@ REQUEST_PAYLOAD=$(cat <<EOF
         "message": "Back-off restarting failed container"
       }
     ],
-    "repoUrl": "https://github.com/YOUR_USERNAME/YOUR_REPO"
+    "repoUrl": "https://github.com/$GITHUB_REPO",
+    "baseBranch": "main"
   }
 }
 EOF
