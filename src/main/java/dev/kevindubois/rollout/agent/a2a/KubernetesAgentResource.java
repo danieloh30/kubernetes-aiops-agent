@@ -23,6 +23,7 @@ import dev.kevindubois.rollout.agent.model.KubernetesAgentResponse;
 import dev.kevindubois.rollout.agent.remediation.GitHubRestClient;
 import dev.kevindubois.rollout.agent.remediation.SourceCodeTool;
 import dev.kevindubois.rollout.agent.utils.RetryHelper;
+import dev.kevindubois.rollout.agent.utils.TokenManager;
 import dev.kevindubois.rollout.agent.utils.ToolCallLimiter;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
 
@@ -41,6 +42,9 @@ public class KubernetesAgentResource {
 
     @Inject
     SourceCodeTool sourceCodeTool;
+
+    @Inject
+    TokenManager tokenManager;
 
     @Inject
     @RestClient
@@ -145,8 +149,12 @@ public class KubernetesAgentResource {
                         // Brief delay to avoid rate limiting from rapid sequential LLM calls
                         Thread.sleep(3000);
                         Log.info("Starting async remediation");
+                        
+                        // Truncate input to prevent token limit errors
+                        String truncatedPrompt = tokenManager.prepareRemediationInput(enrichedPrompt);
+                        
                         AnalysisResult remediationResult = remediationAgent.implementRemediation(
-                            enrichedPrompt, finalResult, repoUrl, baseBranch
+                            truncatedPrompt, finalResult, repoUrl, baseBranch
                         );
                         if (remediationResult.prLink() != null && !remediationResult.prLink().isEmpty()) {
                             Log.info(MessageFormat.format(
