@@ -1,4 +1,4 @@
-package dev.kevindubois.rollout.agent.utils;
+package dev.danieloh.rollout.agent.utils;
 
 import org.junit.jupiter.api.Test;
 

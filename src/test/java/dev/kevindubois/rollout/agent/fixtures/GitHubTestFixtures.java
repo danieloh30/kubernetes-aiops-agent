@@ -1,4 +1,4 @@
-package dev.kevindubois.rollout.agent.fixtures;
+package dev.danieloh.rollout.agent.fixtures;
 
 import java.time.Instant;
 import java.util.List;

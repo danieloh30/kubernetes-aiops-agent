@@ -1,6 +1,6 @@
-package dev.kevindubois.rollout.agent.service;
+package dev.danieloh.rollout.agent.service;
 
-import dev.kevindubois.rollout.agent.model.KubernetesAgentResponse;
+import dev.danieloh.rollout.agent.model.KubernetesAgentResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
