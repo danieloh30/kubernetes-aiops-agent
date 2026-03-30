@@ -1,4 +1,4 @@
-package dev.kevindubois.rollout.agent.remediation;
+package dev.danieloh.rollout.agent.remediation;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

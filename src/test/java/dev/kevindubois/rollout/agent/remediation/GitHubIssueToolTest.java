@@ -1,4 +1,4 @@
-package dev.kevindubois.rollout.agent.remediation;
+package dev.danieloh.rollout.agent.remediation;
 
 import io.quarkus.test.InjectMock;
 import io.quarkus.test.junit.QuarkusTest;

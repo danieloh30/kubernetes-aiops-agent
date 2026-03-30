@@ -1,4 +1,4 @@
-package dev.kevindubois.rollout.agent.service;
+package dev.danieloh.rollout.agent.service;
 
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;

@@ -1,4 +1,4 @@
-package dev.kevindubois.rollout.agent.utils;
+package dev.danieloh.rollout.agent.utils;
 
 import io.quarkus.test.junit.QuarkusTest;
 import jakarta.inject.Inject;
@@ -88,7 +88,7 @@ class TokenManagerTest {
             
             === SOURCE CODE (pre-fetched) ===
             File: src/main/java/LoadGeneratorService.java
-               1 | package dev.kevindubois.demo;
+               1 | package dev.danieloh.demo;
                2 | 
                3 | public class LoadGeneratorService {
                4 |     public void generate() {

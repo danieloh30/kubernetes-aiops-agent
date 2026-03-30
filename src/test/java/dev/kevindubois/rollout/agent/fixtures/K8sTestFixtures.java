@@ -1,4 +1,4 @@
-package dev.kevindubois.rollout.agent.fixtures;
+package dev.danieloh.rollout.agent.fixtures;
 
 import io.fabric8.kubernetes.api.model.*;
 import io.fabric8.kubernetes.api.model.metrics.v1beta1.ContainerMetrics;

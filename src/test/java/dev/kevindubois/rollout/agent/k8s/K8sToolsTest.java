@@ -1,6 +1,6 @@
-package dev.kevindubois.rollout.agent.k8s;
+package dev.danieloh.rollout.agent.k8s;
 
-import dev.kevindubois.rollout.agent.fixtures.K8sTestFixtures;
+import dev.danieloh.rollout.agent.fixtures.K8sTestFixtures;
 import io.fabric8.kubernetes.api.model.*;
 import io.fabric8.kubernetes.client.KubernetesClient;
 import io.fabric8.kubernetes.client.dsl.*;
