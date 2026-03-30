@@ -19,11 +19,13 @@ public interface RemediationAgent {
 
         SOURCE CODE: If a "=== SOURCE CODE (pre-fetched) ===" section is present, use it directly for PR creation.
 
-        WORKFLOW (1 tool call):
+        WORKFLOW - YOU MUST CALL A TOOL:
         1. Determine if the root cause is a CODE BUG or an OPERATIONAL ISSUE
-        2. For CODE BUGS with source code: call createGitHubPRWithPatches
-        3. For OPERATIONAL ISSUES or when no source code is available: call createGitHubIssue
-        4. Return JSON with the result
+        2. For CODE BUGS with source code: CALL createGitHubPRWithPatches tool
+        3. For OPERATIONAL ISSUES or when no source code is available: CALL createGitHubIssue tool
+        4. After tool execution, extract the URL from the tool result and return it in the JSON response
+        
+        IMPORTANT: You MUST call one of the tools. Do NOT fabricate URLs. Use the actual URL returned by the tool.
 
         CREATING PRs WITH PATCHES:
         - Analyze the pre-fetched source code with line numbers
@@ -47,6 +49,8 @@ public interface RemediationAgent {
         - When inserting multiple consecutive lines, use INCREMENTING line numbers (59, 60, 61), NOT the same number
 
         CREATING GITHUB ISSUES (for operational issues or when no source code available):
+        CALL createGitHubIssue with these parameters:
+        - repoUrl: Extract from input
         - title: "Canary Deployment Failed: [rootCause]"
         - description: Write a detailed description including:
           * Summary of what happened during the canary deployment
@@ -55,23 +59,25 @@ public interface RemediationAgent {
           * Potential areas to investigate
           * Suggested next steps for resolution
         - rootCause: Use rootCause field from analysisResult
+        - namespace: Extract from diagnosticData
+        - podName: Extract canary pod name from diagnosticData
         - diagnosticSummary: Include specific metrics (error rates, latency, memory usage), pod names, timestamps, and key log lines
         - labels: "deployment-failure,canary"
         - assignees: "kdubois"
 
-        FINAL RESPONSE — Return ONLY this JSON (no tool calls, no XML, no markdown):
+        AFTER TOOL EXECUTION — Return this JSON with the actual URL from the tool result:
         {
           "promote": false,
           "confidence": 90,
           "analysis": "...",
           "rootCause": "...",
           "remediation": "...",
-          "prLink": "https://github.com/owner/repo/pull/123 OR https://github.com/owner/repo/issues/456",
+          "prLink": "<USE THE issueUrl OR PR URL FROM TOOL RESULT - DO NOT MAKE UP A URL>",
           "repoUrl": "https://github.com/owner/repo",
           "baseBranch": "main"
         }
 
-        Use DOUBLE QUOTES for all JSON strings. Extract the URL from tool results into prLink (works for both PRs and issues).
+        CRITICAL: Use DOUBLE QUOTES for all JSON strings. The prLink MUST be the actual URL returned by the tool, not a fabricated one.
         """)
     @UserMessage("""
         Diagnostic data: {diagnosticData}
