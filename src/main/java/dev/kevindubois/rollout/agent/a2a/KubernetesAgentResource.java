@@ -22,6 +22,7 @@ import dev.kevindubois.rollout.agent.model.KubernetesAgentRequest;
 import dev.kevindubois.rollout.agent.model.KubernetesAgentResponse;
 import dev.kevindubois.rollout.agent.remediation.GitHubRestClient;
 import dev.kevindubois.rollout.agent.remediation.SourceCodeTool;
+import dev.kevindubois.rollout.agent.utils.RateLimiter;
 import dev.kevindubois.rollout.agent.utils.RetryHelper;
 import dev.kevindubois.rollout.agent.utils.TokenManager;
 import dev.kevindubois.rollout.agent.utils.ToolCallLimiter;
@@ -45,6 +46,9 @@ public class KubernetesAgentResource {
 
     @Inject
     TokenManager tokenManager;
+
+    @Inject
+    RateLimiter rateLimiter;
 
     @Inject
     @RestClient
@@ -152,6 +156,10 @@ public class KubernetesAgentResource {
                         
                         // Truncate input to prevent token limit errors
                         String truncatedPrompt = tokenManager.prepareRemediationInput(enrichedPrompt);
+                        
+                        // Estimate tokens and acquire rate limit permit
+                        int estimatedTokens = tokenManager.estimateTokens(truncatedPrompt) + 8192; // input + max output
+                        rateLimiter.acquirePermit(estimatedTokens);
                         
                         AnalysisResult remediationResult = remediationAgent.implementRemediation(
                             truncatedPrompt, finalResult, repoUrl, baseBranch
