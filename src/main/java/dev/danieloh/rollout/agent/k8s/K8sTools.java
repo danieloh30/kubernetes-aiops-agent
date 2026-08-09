@@ -670,7 +670,7 @@ public class K8sTools {
         Log.info("=== Executing Tool: fetchApplicationMetrics ===");
         
         if (namespace == null || namespace.isEmpty() || podName == null || podName.isEmpty()) {
-            return Map.of("error", "namespace and podName are required and cannot be empty");
+            return new HashMap<>(Map.of("error", "namespace and podName are required and cannot be empty"));
         }
         
         String path = (metricsPath != null && !metricsPath.isEmpty()) ? metricsPath : "/q/metrics";
@@ -685,12 +685,12 @@ public class K8sTools {
                 .get();
             
             if (pod == null) {
-                return Map.of("error", MessageFormat.format("Pod not found: {0}/{1}", namespace, podName));
+                return new HashMap<>(Map.of("error", MessageFormat.format("Pod not found: {0}/{1}", namespace, podName)));
             }
             
             String podIP = pod.getStatus().getPodIP();
             if (podIP == null || podIP.isEmpty()) {
-                return Map.of("error", "Pod IP not available - pod may not be running");
+                return new HashMap<>(Map.of("error", "Pod IP not available - pod may not be running"));
             }
             
             try {
@@ -711,10 +711,10 @@ public class K8sTools {
                     java.net.http.HttpResponse.BodyHandlers.ofString());
                 
                 if (response.statusCode() != 200) {
-                    return Map.of(
+                    return new HashMap<>(Map.of(
                         "error", "Failed to fetch metrics",
                         "statusCode", response.statusCode()
-                    );
+                    ));
                 }
                 
                 Map<String, Object> parsedMetrics = parsePrometheusMetrics(response.body());
@@ -727,16 +727,16 @@ public class K8sTools {
                 
             } catch (java.io.IOException | InterruptedException e) {
                 Log.error("Error fetching metrics from pod", e);
-                return Map.of(
+                return new HashMap<>(Map.of(
                     "error", "Failed to connect to pod metrics endpoint",
                     "details", e.getMessage(),
                     "podIP", podIP
-                );
+                ));
             }
             
         } catch (Exception e) {
             Log.error("Error fetching application metrics", e);
-            return Map.of("error", e.getMessage());
+            return new HashMap<>(Map.of("error", e.getMessage()));
         }
     }
 
