@@ -8,6 +8,8 @@ import org.eclipse.microprofile.rest.client.inject.RestClient;
 import io.quarkus.logging.Log;
 
 import java.text.MessageFormat;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -81,24 +83,22 @@ public class GitHubIssueTool {
             String sanitizedLabels = sanitizeInput(labels);
             String sanitizedAssignees = sanitizeInput(assignees);
             
-            String[] labelArray = (sanitizedLabels != null && !sanitizedLabels.isEmpty())
-                ? sanitizedLabels.split(",")
-                : new String[0];
-            String[] assigneeArray = (sanitizedAssignees != null && !sanitizedAssignees.isEmpty())
-                ? sanitizedAssignees.split(",")
-                : new String[0];
-            
-            // Trim whitespace and remove any remaining quotes from labels and assignees
-            for (int i = 0; i < labelArray.length; i++) {
-                labelArray[i] = labelArray[i].trim().replaceAll("^\"|\"$", "");
-            }
-            for (int i = 0; i < assigneeArray.length; i++) {
-                assigneeArray[i] = assigneeArray[i].trim().replaceAll("^@", "");
-            }
+            List<String> labelList = (sanitizedLabels != null && !sanitizedLabels.isEmpty())
+                ? Arrays.stream(sanitizedLabels.split(","))
+                    .map(s -> s.trim().replaceAll("^\"|\"$", ""))
+                    .filter(s -> !s.isEmpty())
+                    .toList()
+                : List.of();
+            List<String> assigneeList = (sanitizedAssignees != null && !sanitizedAssignees.isEmpty())
+                ? Arrays.stream(sanitizedAssignees.split(","))
+                    .map(s -> s.trim().replaceAll("^@", "").replaceAll("^\"|\"$", ""))
+                    .filter(s -> !s.isEmpty())
+                    .toList()
+                : List.of();
             
             // Create issue request
             GitHubRestClient.CreateIssueRequest issueRequest =
-                new GitHubRestClient.CreateIssueRequest(title, issueBody, labelArray, assigneeArray);
+                new GitHubRestClient.CreateIssueRequest(title, issueBody, labelList, assigneeList);
             
             GitHubRestClient.GitHubIssue issue =
                 githubClient.createIssue(owner, repo, authHeader, issueRequest);
