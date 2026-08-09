@@ -3,6 +3,7 @@ package dev.danieloh.rollout.agent.remediation;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
+import java.util.List;
 import org.eclipse.microprofile.rest.client.inject.RegisterRestClient;
 
 /**
@@ -93,8 +94,8 @@ public interface GitHubRestClient {
     record CreateIssueRequest(
             String title,
             String body,
-            String[] labels,
-            String[] assignees
+            List<String> labels,
+            List<String> assignees
     ) {}
 
     record GitHubTree(
