@@ -825,7 +825,7 @@ public class K8sTools {
         Log.info("=== Executing Tool: getCanaryMetrics ===");
 
         if (namespace == null || namespace.isEmpty()) {
-            return Map.of("error", "namespace is required");
+            return new HashMap<>(Map.of("error", "namespace is required"));
         }
 
         Log.info(MessageFormat.format("Getting canary metrics for namespace: {0}", namespace));
@@ -858,21 +858,21 @@ public class K8sTools {
             CompletableFuture<Map<String, Object>> stableMetricsFuture = CompletableFuture.supplyAsync(() -> {
                 if (!stablePods.isEmpty()) {
                     Pod stablePod = stablePods.get(0);
-                    Map<String, Object> metrics = fetchApplicationMetrics(namespace, stablePod.getMetadata().getName(), "/q/metrics", 8080);
+                    Map<String, Object> metrics = new HashMap<>(fetchApplicationMetrics(namespace, stablePod.getMetadata().getName(), "/q/metrics", 8080));
                     metrics.put("podName", stablePod.getMetadata().getName());
                     return metrics;
                 }
-                return Map.of("error", "No stable pods found");
+                return new HashMap<>(Map.of("error", "No stable pods found"));
             });
 
             CompletableFuture<Map<String, Object>> canaryMetricsFuture = CompletableFuture.supplyAsync(() -> {
                 if (!canaryPods.isEmpty()) {
                     Pod canaryPod = canaryPods.get(0);
-                    Map<String, Object> metrics = fetchApplicationMetrics(namespace, canaryPod.getMetadata().getName(), "/q/metrics", 8080);
+                    Map<String, Object> metrics = new HashMap<>(fetchApplicationMetrics(namespace, canaryPod.getMetadata().getName(), "/q/metrics", 8080));
                     metrics.put("podName", canaryPod.getMetadata().getName());
                     return metrics;
                 }
-                return Map.of("error", "No canary pods found");
+                return new HashMap<>(Map.of("error", "No canary pods found"));
             });
 
             result.put("stable", stableMetricsFuture.join());
@@ -883,7 +883,7 @@ public class K8sTools {
 
         } catch (Exception e) {
             Log.error("Error getting canary metrics", e);
-            return Map.of("error", e.getMessage());
+            return new HashMap<>(Map.of("error", e.getMessage()));
         }
     }
 
@@ -909,9 +909,9 @@ public class K8sTools {
         Log.info("=== Executing Tool: getCanaryDiagnostics (with virtual threads) ===");
         
         if (namespace == null || namespace.isEmpty()) {
-            return Map.of("error", "namespace is required");
+            return new HashMap<>(Map.of("error", "namespace is required"));
         }
-        
+
         int lines = (tailLines != null && tailLines > 0) ? tailLines : 200;
         Log.info(MessageFormat.format("Getting canary diagnostics for namespace: {0}, container: {1}, lines: {2}",
                 namespace, containerName, lines));
@@ -1009,7 +1009,7 @@ public class K8sTools {
             
         } catch (Exception e) {
             Log.error("Error getting canary diagnostics", e);
-            return Map.of("error", e.getMessage());
+            return new HashMap<>(Map.of("error", e.getMessage()));
         }
     }
 }
