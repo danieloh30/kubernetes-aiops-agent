@@ -4,22 +4,38 @@ updates:
   - package-ecosystem: "maven"
     directory: "/"
     schedule:
-      interval: "weekly"
-      day: "monday"
+      interval: "daily"
       time: "09:00"
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 10
     groups:
       quarkus:
         patterns:
           - "io.quarkus*"
+          - "io.quarkus.platform*"
           - "io.quarkiverse*"
         update-types:
+          - "major"
           - "minor"
           - "patch"
       langchain4j:
         patterns:
           - "dev.langchain4j*"
         update-types:
+          - "major"
+          - "minor"
+          - "patch"
+      a2a:
+        patterns:
+          - "io.github.a2asdk*"
+        update-types:
+          - "major"
+          - "minor"
+          - "patch"
+      kubernetes:
+        patterns:
+          - "io.fabric8*"
+        update-types:
+          - "major"
           - "minor"
           - "patch"
       maven-plugins:
@@ -35,6 +51,13 @@ updates:
           - "org.assertj*"
           - "org.awaitility*"
           - "io.rest-assured*"
+          - "com.github.tomakehurst*"
+        update-types:
+          - "minor"
+          - "patch"
+      other:
+        patterns:
+          - "org.eclipse.jgit*"
         update-types:
           - "minor"
           - "patch"
@@ -42,10 +65,9 @@ updates:
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "weekly"
-      day: "monday"
+      interval: "daily"
       time: "09:00"
-    open-pull-requests-limit: 3
+    open-pull-requests-limit: 5
     groups:
       actions:
         patterns:
