@@ -30,7 +30,7 @@ public class GitHubIssueTool {
         if (githubToken == null || githubToken.isEmpty()) {
             Log.warn("GITHUB_TOKEN environment variable not set");
         } else {
-            Log.info("GitHub Issue tool initialized");
+            Log.debug("GitHub Issue tool initialized");
         }
     }
     
@@ -60,7 +60,7 @@ public class GitHubIssueTool {
             String labels,
             String assignees
     ) {
-        Log.info("=== Executing Tool: createGitHubIssue ===");
+        Log.info("Executing Tool: createGitHubIssue");
         
         if (repoUrl == null || title == null || description == null) {
             return Map.of("success", false, "error", "Missing required parameters: repoUrl, title, description");

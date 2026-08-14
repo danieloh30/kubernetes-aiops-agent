@@ -36,7 +36,7 @@ public class SourceCodeTool {
         if (githubToken == null || githubToken.isEmpty()) {
             Log.warn("GITHUB_TOKEN environment variable not set");
         } else {
-            Log.info("Source code tool initialized");
+            Log.debug("Source code tool initialized");
         }
     }
     
@@ -64,7 +64,7 @@ public class SourceCodeTool {
             List<String> filePaths,
             String branch
     ) {
-        Log.info("=== Executing Tool: readSourceFiles ===");
+        Log.info("Executing Tool: readSourceFiles");
         
         // Validate required parameters
         if (repoUrl == null || repoUrl.isEmpty()) {

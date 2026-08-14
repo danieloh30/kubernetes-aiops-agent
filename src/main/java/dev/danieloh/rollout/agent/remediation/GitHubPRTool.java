@@ -37,7 +37,7 @@ public class GitHubPRTool {
         if (githubToken == null || githubToken.isEmpty()) {
             Log.warn("GITHUB_TOKEN environment variable not set");
         } else {
-            Log.info("GitHub PR tool initialized");
+            Log.debug("GitHub PR tool initialized");
         }
     }
     
@@ -63,7 +63,7 @@ public class GitHubPRTool {
             String podName,
             String testingRecommendations
     ) {
-        Log.info("=== Executing Tool: createGitHubPR ===");
+        Log.info("Executing Tool: createGitHubPR");
         
         // Validate required parameters
         if (repoUrl == null || fileChanges == null || fixDescription == null) {
