@@ -51,10 +51,10 @@ public class SourceCodeTool {
      * - pom.xml (Maven) or build.gradle (Gradle)
      *
      * Example: For package "dev.danieloh.demo" and class "LoadGeneratorService":
-     * Path should be: "src/main/java/dev/kevindubois/demo/LoadGeneratorService.java"
+     * Path should be: "src/main/java/dev/danieloh/demo/LoadGeneratorService.java"
      *
      * @param repoUrl URL of the GitHub repository (e.g., "https://github.com/owner/repo")
-     * @param filePaths List of file paths to read (e.g., ["src/main/java/dev/kevindubois/demo/LoadGeneratorService.java"])
+     * @param filePaths List of file paths to read (e.g., ["src/main/java/dev/danieloh/demo/LoadGeneratorService.java"])
      * @param branch Branch name to read from (e.g., "main", "develop")
      * @return Map containing file contents and metadata
      */

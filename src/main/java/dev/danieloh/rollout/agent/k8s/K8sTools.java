@@ -31,7 +31,7 @@ public class K8sTools {
      */
     @Tool("Debug a Kubernetes pod to get detailed information about its status and conditions")
     public Map<String, Object> debugPod(String namespace, String podName) {
-        Log.info("=== Executing Tool: debugPod ===");
+        Log.debug("Executing Tool: debugPod");
         
         if (namespace == null || namespace.isEmpty() || podName == null || podName.isEmpty()) {
             return Map.of("error", "namespace and podName are required and cannot be empty");
@@ -140,7 +140,7 @@ public class K8sTools {
      */
     @Tool("Get Kubernetes events for a namespace or specific pod")
     public Map<String, Object> getEvents(String namespace, String podName, Integer limit) {
-        Log.info("=== Executing Tool: getEvents ===");
+        Log.debug("Executing Tool: getEvents");
         
         if (namespace == null || namespace.isEmpty()) {
             return Map.of("error", "namespace is required and cannot be empty");
@@ -214,7 +214,7 @@ public class K8sTools {
      */
     @Tool("Get logs from a Kubernetes pod. Returns recent log entries including ERROR, CRITICAL, and ALERT messages if present.")
     public Map<String, Object> getLogs(String namespace, String podName, String containerName, Boolean previous, Integer tailLines) {
-        Log.info("=== Executing Tool: getLogs ===");
+        Log.debug("Executing Tool: getLogs");
         
         if (namespace == null || namespace.isEmpty() || podName == null || podName.isEmpty()) {
             return Map.of("error", "namespace and podName are required and cannot be empty");
@@ -338,7 +338,7 @@ public class K8sTools {
      */
     @Tool("Get resource metrics (CPU and memory usage) for a Kubernetes pod. IMPORTANT: You must provide both the namespace and the exact pod name.")
     public Map<String, Object> getMetrics(String namespace, String podName) {
-        Log.info("=== Executing Tool: getMetrics ===");
+        Log.debug("Executing Tool: getMetrics");
         
         if (namespace == null || namespace.isEmpty() || podName == null || podName.isEmpty()) {
             return Map.of("error", "namespace and podName are required and cannot be empty");
@@ -444,7 +444,7 @@ public class K8sTools {
      */
     @Tool("Inspect Kubernetes resources in a namespace. Use labelSelector to filter pods by labels (e.g., 'role=stable' or 'role=canary')")
     public Map<String, Object> inspectResources(String namespace, String resourceType, String resourceName, String labelSelector) {
-        Log.info("=== Executing Tool: inspectResources ===");
+        Log.debug("Executing Tool: inspectResources");
         
         if (namespace == null || namespace.isEmpty()) {
             return Map.of("error", "namespace is required and cannot be empty");
@@ -667,7 +667,7 @@ public class K8sTools {
      */
     @Tool("Fetch application metrics from a pod's Prometheus metrics endpoint. Returns error rates, request counts, latency, and custom application metrics.")
     public Map<String, Object> fetchApplicationMetrics(String namespace, String podName, String metricsPath, Integer port) {
-        Log.info("=== Executing Tool: fetchApplicationMetrics ===");
+        Log.debug("Executing Tool: fetchApplicationMetrics");
         
         if (namespace == null || namespace.isEmpty() || podName == null || podName.isEmpty()) {
             return new HashMap<>(Map.of("error", "namespace and podName are required and cannot be empty"));
@@ -822,7 +822,7 @@ public class K8sTools {
     @Tool("Fetch application metrics from /q/metrics endpoints of both stable and canary pods in parallel.")
     @RunOnVirtualThread
     public Map<String, Object> getCanaryMetrics(String namespace) {
-        Log.info("=== Executing Tool: getCanaryMetrics ===");
+        Log.debug("Executing Tool: getCanaryMetrics");
 
         if (namespace == null || namespace.isEmpty()) {
             return new HashMap<>(Map.of("error", "namespace is required"));
@@ -906,7 +906,7 @@ public class K8sTools {
     @Tool("canary diagnostics - fetches both stable and canary pod info and logs.")
     @RunOnVirtualThread
     public Map<String, Object> getCanaryDiagnostics(String namespace, String containerName, Integer tailLines) {
-        Log.info("=== Executing Tool: getCanaryDiagnostics (with virtual threads) ===");
+        Log.debug("Executing Tool: getCanaryDiagnostics");
         
         if (namespace == null || namespace.isEmpty()) {
             return new HashMap<>(Map.of("error", "namespace is required"));
