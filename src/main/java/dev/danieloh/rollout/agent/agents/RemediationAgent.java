@@ -64,7 +64,7 @@ public interface RemediationAgent {
         - podName: Extract canary pod name from diagnosticData
         - diagnosticSummary: Include specific metrics (error rates, latency, memory usage), pod names, timestamps, and key log lines
         - labels: "deployment-failure,canary"
-        - assignees: "kdubois"
+        - assignees: "danieloh30"
 
         AFTER TOOL EXECUTION — Return this JSON with the actual URL from the tool result:
         {
