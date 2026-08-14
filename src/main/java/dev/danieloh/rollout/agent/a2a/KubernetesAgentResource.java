@@ -66,27 +66,16 @@ public class KubernetesAgentResource {
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     public Response analyze(KubernetesAgentRequest request) {
-        Log.info(MessageFormat.format("Received analysis request from user: {0}", request.userId()));
-        
+        Log.info("Received canary analysis request — starting multi-agent workflow");
+
         try {
-            // Extract context values for later use
             Map<String, Object> context = request.context();
             String repoUrl = context != null ? (String) context.get("repoUrl") : null;
             String baseBranch = context != null ? (String) context.get("baseBranch") : "main";
-            
-            Log.info(MessageFormat.format("Context - repoUrl: {0}, baseBranch: {1}", repoUrl, baseBranch));
-            
-            // Build prompt with context
+
             String prompt = buildPrompt(request);
-            Log.debug(MessageFormat.format("Built prompt: {0}", prompt));
-            
-            // Get effective memory ID (uses memoryId if provided, otherwise falls back to userId)
             String memoryId = request.getEffectiveMemoryId();
-            Log.debug(MessageFormat.format("Using memory ID: {0}", memoryId));
-            
-            // Reset tool call limiter for this new analysis session
             ToolCallLimiter.resetSession(memoryId);
-            Log.info(MessageFormat.format("Reset tool call limiter for session: {0}", memoryId));
             
             // Execute multi-agent workflow with retry logic for transient errors
             AnalysisResult analysisResult = RetryHelper.executeWithRetryOnTransientErrors(
@@ -133,30 +122,30 @@ public class KubernetesAgentResource {
                 analysisResult.confidence()
             );
             
-            Log.info("Multi-agent workflow completed successfully");
-            
+            Log.info(MessageFormat.format("AI Decision: promote={0}, confidence={1}%, rootCause={2}",
+                    analysisResult.promote(), analysisResult.confidence(), analysisResult.rootCause()));
+            Log.info(MessageFormat.format("AI Analysis: {0}", analysisResult.analysis()));
+
             // Trigger async remediation if needed (fire-and-forget)
             final AnalysisResult finalResult = analysisResult;
             final String finalPrompt = buildPrompt(request);
             if (!finalResult.promote() && repoUrl != null && !repoUrl.isEmpty()) {
-                Log.info("Triggering async remediation for rollback decision");
+                boolean operational = isOperationalIssue(finalResult.rootCause());
+                Log.info(MessageFormat.format("Rollback recommended — starting remediation ({0})",
+                        operational ? "operational issue → will create GitHub issue" : "code bug → will create PR"));
 
-                // Only pre-fetch source code for code bugs, not operational issues
                 final String enrichedPrompt;
-                if (!isOperationalIssue(finalResult.rootCause())) {
+                if (!operational) {
                     String analysisText = finalPrompt + "\n" + finalResult.toString();
                     String sourceContext = prefetchSourceCode(analysisText, repoUrl, baseBranch);
                     enrichedPrompt = finalPrompt + sourceContext;
                 } else {
-                    Log.info("Operational issue detected (e.g. memory leak), skipping source code pre-fetch — will create issue instead of PR");
                     enrichedPrompt = finalPrompt;
                 }
 
                 CompletableFuture.runAsync(() -> {
                     try {
-                        // Brief delay to avoid rate limiting from rapid sequential LLM calls
                         Thread.sleep(3000);
-                        Log.info("Starting async remediation");
                         
                         // Truncate input to prevent token limit errors
                         String truncatedPrompt = tokenManager.prepareRemediationInput(enrichedPrompt);
@@ -172,7 +161,7 @@ public class KubernetesAgentResource {
                         // Fallback: If LLM didn't create an issue for memory leak, create it directly
                         if ((remediationResult.prLink() == null || remediationResult.prLink().isEmpty())
                             && isOperationalIssue(finalResult.rootCause())) {
-                            Log.info("LLM did not create GitHub issue for operational issue - creating fallback issue");
+                            Log.info("Creating fallback GitHub issue for operational issue");
                             try {
                                 // Extract namespace and podName from context
                                 Map<String, Object> reqContext = request.context();
@@ -252,23 +241,23 @@ public class KubernetesAgentResource {
         if (filePaths.isEmpty()) {
             List<String> classNames = extractClassNames(diagnosticData);
             if (!classNames.isEmpty()) {
-                Log.info(MessageFormat.format("No file paths from stack traces, searching repo for classes: {0}", classNames));
+                Log.debug(MessageFormat.format("No file paths from stack traces, searching repo for classes: {0}", classNames));
                 filePaths = searchRepoForClasses(repoUrl, baseBranch, classNames);
             }
         }
 
         // Strategy 3: If still nothing, fetch all main source files from the repo
         if (filePaths.isEmpty()) {
-            Log.info("No specific classes identified, fetching all main source files from repo");
+            Log.debug("No specific classes identified, fetching all main source files from repo");
             filePaths = getAllMainSourceFiles(repoUrl, baseBranch);
         }
 
         if (filePaths.isEmpty()) {
-            Log.info("No source files found in repo, skipping pre-fetch");
+            Log.debug("No source files found in repo, skipping pre-fetch");
             return "";
         }
 
-        Log.info(MessageFormat.format("Pre-fetching {0} source files: {1}", filePaths.size(), filePaths));
+        Log.debug(MessageFormat.format("Pre-fetching {0} source files: {1}", filePaths.size(), filePaths));
         try {
             Map<String, Object> result = sourceCodeTool.readSourceFiles(repoUrl, filePaths, baseBranch);
             if (Boolean.TRUE.equals(result.get("success"))) {
@@ -309,7 +298,7 @@ public class KubernetesAgentResource {
                             if (entry.path().endsWith("/" + className + ".java") || entry.path().equals(className + ".java")) {
                                 if (!foundPaths.contains(entry.path())) {
                                     foundPaths.add(entry.path());
-                                    Log.info(MessageFormat.format("Found source file for {0}: {1}", className, entry.path()));
+                                    Log.debug(MessageFormat.format("Found source file for {0}: {1}", className, entry.path()));
                                 }
                             }
                         }
@@ -362,7 +351,7 @@ public class KubernetesAgentResource {
                 if (result.size() >= MAX_SOURCE_FILES) break;
                 result.add(f);
             }
-            Log.info(MessageFormat.format("Found {0} main source files, returning top {1}",
+            Log.debug(MessageFormat.format("Found {0} main source files, returning top {1}",
                     priorityFiles.size() + otherFiles.size(), result.size()));
             return result;
         } catch (Exception e) {
