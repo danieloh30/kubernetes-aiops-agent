@@ -1,533 +1,190 @@
-# Kubernetes AI Agent
+# Kubernetes AIOps Agent
 
-[![Build and Push](https://github.com/kdubois/kubernetes-agent/actions/workflows/build.yml/badge.svg)](https://github.com/kdubois/kubernetes-agent/actions/workflows/build.yml)
-[![codecov](https://codecov.io/gh/kdubois/kubernetes-agent/branch/main/graph/badge.svg)](https://codecov.io/gh/kdubois/kubernetes-agent)
+A Digital SRE Agent that uses LLMs to autonomously analyze Kubernetes canary deployments, make promote/rollback decisions, and create GitHub PRs or Issues with automated remediation. Built with Quarkus and LangChain4j.
 
-An autonomous AI agent for Kubernetes debugging and remediation, powered by Quarkus LangChain4j with support for Google Gemini AI and OpenAI.
+## How It Works
 
-## Overview
-
-The Kubernetes Agent is an intelligent system that:
-
-- **Debugs** Kubernetes pods automatically
-- **Analyzes** logs, events, and metrics
-- **Identifies** root causes of issues
-- **Creates** GitHub pull requests with fixes
-- **Integrates** with Argo Rollouts for canary analysis
-
-## Bug Scenario Testing
-
-The agent can automatically analyze and diagnose production issues. Test with realistic bug scenarios:
-
-- **Memory Leak Detection**: Identifies gradual memory exhaustion and heap pressure
-- **Connection Pool Exhaustion**: Detects resource leaks causing sharp failures  
-- **CPU Spike Analysis**: Diagnoses periodic performance degradation
-
-See [BUG_SCENARIO_TESTING.md](BUG_SCENARIO_TESTING.md) for detailed testing guide.
-
-### Quick Test
-
-```bash
-# Test memory leak scenario
-./test-bug-scenario.sh memory-leak
-
-# Test all scenarios
-./test-bug-scenario.sh all
-```
-
-## Features
-
-### Kubernetes Debugging Tools
-
-- **Pod Debugging**: Analyze pod status, conditions, and container states
-- **Events**: Retrieve and correlate cluster events
-- **Logs**: Fetch and analyze container logs (including previous crashes)
-- **Metrics**: Check resource usage and limits
-- **Resources**: Inspect related deployments, services, and configmaps
-
-### Remediation Capabilities
-
-- **Source Code Analysis**: Read repository files to understand code structure and make informed fixes
-- **Git Operations**: Clone, branch, commit, push (using JGit library)
-- **GitHub PRs**: Automatically create pull requests with:
-    - Root cause analysis
-    - Code fixes based on actual source code
-    - Testing recommendations
-    - Links to Kubernetes resources
-
-### Source Code Access
-
-The remediation agent can read source files from the repository to make more accurate fix decisions:
-
-- **On-Demand File Reading**: Agent requests specific files only when needed
-- **Batch Operations**: Read multiple files in a single operation for efficiency
-- **Common Use Cases**:
-  - Analyze configuration files (`application.properties`, YAML configs)
-  - Review dependency files (`pom.xml`, `build.gradle`, `package.json`)
-  - Examine application code referenced in error logs
-  - Identify exact line numbers for precise fixes
-- **Smart Analysis**: Agent uses actual source code context to propose better fixes
-
-**Example**: When detecting a NullPointerException in logs, the agent can:
-1. Read the source file mentioned in the stack trace
-2. Analyze the actual code structure
-3. Propose a fix with exact line numbers
-4. Create a PR with the corrected code
-
-### A2A Communication
-
-- **REST API**: Expose analysis capabilities via HTTP
-- **Integration**: Works with `rollouts-plugin-metric-ai` for canary analysis
-
-## Architecture
+The agent exposes an A2A (Agent-to-Agent) protocol endpoint that receives canary analysis requests -- typically from an Argo Rollouts analysis plugin. Internally, it runs a multi-agent workflow:
 
 ```
-Argo Rollouts Analysis
-	↓
-rollouts-plugin-metric-ai
-	↓ (A2A HTTP)
-Kubernetes Agent (Quarkus LangChain4j)
-	├── K8s Tools (Quarkus Kubernetes)
-	├── Git Operations (JGit)
-	├── GitHub PR (Quarkus Rest Client)
-	└── AI Analysis (Gemini or OpenAI)
+Argo Rollouts AnalysisTemplate
+  |
+  v
+rollouts-plugin-metric-ai  (Argo plugin)
+  |  POST /a2a/analyze
+  v
+Kubernetes AIOps Agent
+  |
+  |-- DiagnosticAgent: Gathers pod status, logs, and /q/metrics from stable + canary pods
+  |-- MetricsDiagnosticAgent: Fetches application-level metrics (error rates, latency, success rates)
+  |-- AnalysisAgent: Compares stable vs. canary using thresholds (error rate, p95/p99 latency, success rate)
+  |-- ScoringAgent: Evaluates analysis quality; retries if confidence is too low
+  |-- RemediationAgent (async, on rollback):
+  |     - Code bug detected  -->  Creates GitHub PR with a patch fix
+  |     - Operational issue  -->  Creates GitHub Issue with RCA
+  v
+JSON response: { promote, confidence, analysis, rootCause, remediation, prLink }
 ```
 
-## CI/CD
-
-The project uses GitHub Actions for automated builds and deployments:
-
-- **Automated Builds**: Every push to `main` triggers a build, runs tests, and pushes container images to GitHub Container Registry (GHCR)
-- **Test Coverage**: Code coverage reports are automatically uploaded to Codecov
-- **Pull Request Validation**: PRs are built and tested automatically without pushing images
-- **Container Images**: Available at `ghcr.io/kdubois/kubernetes-agent`
-- **Dependency Management**: Dependabot automatically creates PRs for Maven dependencies, GitHub Actions, and Docker base images
-
-Container images are tagged with:
-- `latest` for the main branch
-- Version tags for releases (e.g., `v1.0.0`)
-- SHA-based tags for all builds
-
-## Prerequisites
-
-- Java 21+
-- Maven 3.8+
-- Kubernetes cluster
-- Google API Key (Gemini) or OpenAI API Key
-- GitHub Personal Access Token (with `repo` scope)
-
-## Local Development
-
-### 1. Set environment variables
-
-```bash
-# to use Gemini:
-export GOOGLE_API_KEY="your-google-api-key"
-# to use OpenAI:
-export OPENAI_API_KEY="your-openai-key"
-export GITHUB_TOKEN="your-github-token"
-```
-
-### 2. Run locally
-
-```bash
-# Run with Gemini (default)
-mvn quarkus:dev -Dquarkus.profile=dev,gemini
-
-# Run with OpenAI
-mvn quarkus:dev -Dquarkus.profile=dev,openai
-
-# Server starts on port 8080
-# Health check: http://localhost:8080/q/health
-```
-
-### 3. Run locally in console mode
-
-```bash
-# Interactive console mode for testing
-mvn quarkus:dev -Dquarkus.profile=dev,gemini -Drun.mode=console
-
-# Or use the convenience script
-./run-console.sh
-```
-
-## Deployment to Kubernetes
-
-### 1. Build Docker image
-
-```bash
-# Build with Maven
-mvn clean package -Dquarkus.profile=prod,gemini
-
-# Build Docker image
-docker build -f src/main/docker/Dockerfile.jvm -t quay.io/kevindubois/kubernetes-agent:latest .
-
-# Push to registry
-docker push quay.io/kevindubois/kubernetes-agent:latest
-```
-
-Or directly with Quarkus:
-
-```bash
-# Build and push in one command
-mvn quarkus:image-push -Dquarkus.container-image.build=true -Dquarkus.profile=prod,gemini
-```
-
-
-### 2. Create secrets
-
-```bash
-# Copy template
-cp deployment/secret.yaml.template deployment/secret.yaml
-
-# Edit secret.yaml and add your keys
-# Then apply:
-kubectl apply -f deployment/secret.yaml
-```
-
-### 3. Deploy agent
-
-```bash
-# Deploy using Kustomize
-kubectl apply -k deployment/
-
-# Verify deployment
-kubectl get pods -n openshift-gitops | grep kubernetes-agent
-```
-
-**Note**: The default namespace is `openshift-gitops`. Update `deployment/kustomization.yaml` if deploying to a different namespace.
-
-### 4. Verify deployment
-
-```bash
-# Check pods
-kubectl get pods -n openshift-gitops | grep kubernetes-agent
-
-# Check logs
-kubectl logs -f deployment/kubernetes-agent -n openshift-gitops
-
-# Test health endpoint
-kubectl port-forward -n openshift-gitops svc/kubernetes-agent 8080:8080
-curl http://localhost:8080/q/health
-```
-
-### 5. Run tests
-
-The `test-agent.sh` script supports both Kubernetes and local modes:
-
-```bash
-# Test agent running in Kubernetes (default)
-./test-agent.sh k8s
-
-# Test agent running locally on localhost:8080
-./test-agent.sh local
-
-# Use custom local URL
-LOCAL_URL=http://localhost:9090 ./test-agent.sh local
-
-# Use custom Kubernetes context
-CONTEXT=my-k8s-context ./test-agent.sh k8s
-```
-
-The test script will:
-1. ✅ Check health endpoint
-2. ✅ Send a sample analysis request
-3. ✅ Verify no errors in logs (K8s mode only)
-
-## Usage
-
-### Direct Console Mode
-
-```bash
-# Run console mode
-./run-console.sh
-
-# Or manually:
-mvn quarkus:dev -Dquarkus.profile=dev,gemini -Drun.mode=console
-
-# Example interaction:
-You > Debug pod my-app-canary in namespace production
-
-Agent > Analyzing pod my-app-canary in namespace production...
-[Agent gathers debug info, logs, events...]
-
-Root Cause: Container crashloop due to OOMKilled - memory limit too low
-
-Recommendation:
-1. Increase memory limit from 256Mi to 512Mi
-2. Add resource requests to prevent overcommitment
-3. Review memory usage patterns in logs
-```
-
-### A2A Integration
-
-The agent exposes a REST API for other systems to use:
-
-**Endpoint**: `POST /a2a/analyze`
-
-**Request**:
-```json
-{
-	"userId": "argo-rollouts",
-	"prompt": "Analyze canary deployment issue. Namespace: rollouts-test-system, Pod: canary-demo-xyz",
-	"context": {
-		"namespace": "rollouts-test-system",
-		"podName": "canary-demo-xyz",
-		"stableLogs": "...",
-		"canaryLogs": "..."
-	}
-}
-```
-
-**Response**:
-```json
-{
-	"analysis": "Detailed analysis text...",
-	"rootCause": "Identified root cause",
-	"remediation": "Suggested fixes",
-	"prLink": "https://github.com/owner/repo/pull/123",
-	"promote": false,
-	"confidence": 85
-}
-```
-
-## Integration with Argo Rollouts
-
-### 1. Configure Analysis Template
-
-```yaml
-apiVersion: argoproj.io/v1alpha1
-kind: AnalysisTemplate
-metadata:
-	name: canary-analysis-with-agent
-spec:
-	metrics:
-		- name: ai-analysis
-			provider:
-				plugin:
-					ai-metric:
-						# Use agent mode
-						analysisMode: agent
-						namespace: "{{args.namespace}}"
-						podName: "{{args.canary-pod}}"
-						# Fallback to default mode
-						stablePodLabel: app=rollouts-demo,revision=stable
-						canaryPodLabel: app=rollouts-demo,role=stable
-						model: gemini-2.0-flash-exp
-```
-
-### 2. The plugin will automatically:
-1. Check if agent is healthy
-2. Send analysis request with logs
-3. Receive intelligent analysis
-4. Get PR link if fix was created
-5. Decide to promote or abort canary
+The workflow is defined declaratively via LangChain4j `@SequenceAgent` and `@Agent` annotations. Each sub-agent has its own system prompt, tools, and output key.
 
 ## Configuration
+
+### LLM Providers
+
+The agent supports multiple LLM providers, selectable via Quarkus profiles:
+
+| Profile | Provider | Default Model | API Key Env Var |
+|---------|----------|---------------|-----------------|
+| `gemini` | Google Gemini | `gemini-2.5-flash` | `GOOGLE_API_KEY` |
+| `openai` | OpenAI (or compatible) | `gpt-4o` | `OPENAI_API_KEY` |
+
+The `RemediationAgent` uses a separate named model configuration (`remediation`) to allow a different provider/model for code generation tasks.
 
 ### Environment Variables
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `GOOGLE_API_KEY` | Yes* | Google Gemini API key (required if using Gemini) |
-| `OPENAI_API_KEY` | Yes* | OpenAI API key (required if using OpenAI) |
-| `GITHUB_TOKEN` | Yes | GitHub personal access token (needs `repo` scope) |
-| `GIT_USERNAME` | No | Git commit username (default: "kubernetes-agent") |
-| `GIT_EMAIL` | No | Git commit email (default: "agent@example.com") |
-| `GEMINI_MODEL` | No | Gemini model name (default: "gemini-2.5-flash") |
-| `OPENAI_MODEL` | No | OpenAI model name (default: "gpt-4o") |
-| `OPENAI_BASE_URL` | No | OpenAI API base URL (default: "https://api.openai.com/v1") |
+| `GOOGLE_API_KEY` | Yes (gemini profile) | Google Gemini API key |
+| `OPENAI_API_KEY` | Yes (openai profile) | OpenAI API key |
+| `GITHUB_TOKEN` | Yes | GitHub PAT with `repo` scope (for PR/Issue creation) |
+| `GEMINI_MODEL` | No | Override Gemini model (default: `gemini-2.5-flash`) |
+| `OPENAI_MODEL` | No | Override OpenAI model (default: `gpt-4o`) |
+| `OPENAI_BASE_URL` | No | OpenAI-compatible base URL (default: `https://api.openai.com/v1`) |
+| `REM_API_KEY` | No | Separate API key for RemediationAgent |
+| `REM_BASE_URL` | No | Separate base URL for RemediationAgent |
+| `REM_MODEL` | No | Separate model for RemediationAgent (default: `gpt-4o`) |
+| `GIT_USERNAME` | No | Git commit author (default: `kubernetes-agent`) |
+| `GIT_EMAIL` | No | Git commit email (default: `agent@example.com`) |
 
-*Either `GOOGLE_API_KEY` or `OPENAI_API_KEY` is required, depending on which model you're using.
+### Kubernetes Secrets
 
-### Resource Limits
+In production, API keys are read from a Kubernetes Secret named `kubernetes-agent` in the `openshift-gitops` namespace. See `deployment/secret.yaml.template` for the format.
 
-Recommended settings for production:
+## Local Development
 
-```yaml
-resources:
-	requests:
-		memory: "512Mi"
-		cpu: "250m"
-	limits:
-		memory: "2Gi"
-		cpu: "1000m"
-```
+### Prerequisites
 
-## Troubleshooting
+- Java 21+
+- Maven 3.8+
+- Access to a Kubernetes cluster (for K8s tools to function)
 
-### Agent not starting
+### Running
 
 ```bash
-# Check logs
-kubectl logs deployment/kubernetes-agent -n openshift-gitops
+# Set API keys
+export GOOGLE_API_KEY="..."   # or OPENAI_API_KEY
+export GITHUB_TOKEN="..."
 
-# Common issues:
-# 1. Missing API keys - check secrets
-# 2. Invalid service account - check RBAC
-# 3. Out of memory - increase limits
-# 4. Wrong namespace - check deployment namespace
+# Run with Gemini
+mvn quarkus:dev -Dquarkus.profile=dev,gemini
+
+# Run with OpenAI
+mvn quarkus:dev -Dquarkus.profile=dev,openai
+
+# Run with a vLLM-compatible endpoint
+export OPENAI_BASE_URL="http://vllm-host:8000/v1"
+export OPENAI_API_KEY="dummy"
+mvn quarkus:dev -Dquarkus.profile=dev,openai
 ```
 
-### Health check failing
+### Testing the Endpoint
 
 ```bash
-# Test endpoint directly
-kubectl port-forward -n openshift-gitops svc/kubernetes-agent 8080:8080
-curl http://localhost:8080/q/health
-
-# Should return Quarkus health check response
-```
-
-### API Key Issues
-
-```bash
-# Verify secret exists
-kubectl get secret kubernetes-agent -n openshift-gitops
-
-# Check environment variables in pod
-kubectl exec -n openshift-gitops deployment/kubernetes-agent -- env | grep -E "GOOGLE_API_KEY|OPENAI_API_KEY|GITHUB_TOKEN"
-```
-
-### PR creation failing
-
-```bash
-# Check GitHub token permissions:
-# - repo (full control)
-# - workflow (if modifying GitHub Actions)
-
-# Check logs for git errors:
-kubectl logs deployment/kubernetes-agent -n openshift-gitops | grep -i "git\|github"
-```
-
-## Security Considerations
-
-1. **RBAC**: Agent only has read access to K8s resources (no write)
-2. **Secrets**: Store API keys in Kubernetes secrets
-3. **Network**: Use NetworkPolicies to restrict egress
-4. **Git**: Use fine-grained personal access tokens
-5. **Review**: Always review PRs before merging
-
-## Development
-
-### Project Structure
-
-```
-kubernetes-agent/
-├── src/main/java/dev/kevindubois/rollout/agent/
-│   ├── agents/                       # Agent interfaces
-│   │   ├── KubernetesAgent.java     # Main agent interface
-│   │   ├── AnalysisAgent.java       # Analysis logic
-│   │   ├── DiagnosticAgent.java     # Data gathering
-│   │   ├── ScoringAgent.java        # Quality scoring
-│   │   └── RemediationAgent.java    # PR creation
-│   ├── k8s/                          # Kubernetes tools
-│   │   └── K8sTools.java            # K8s debugging tools
-│   ├── a2a/                          # A2A REST API
-│   │   ├── KubernetesAgentResource.java
-│   │   └── A2AAgentExecutor.java
-│   ├── model/                        # Data models
-│   └── utils/                        # Utilities
-├── deployment/                       # Kubernetes manifests
-│   ├── deployment.yaml
-│   ├── rbac.yaml
-│   ├── service.yaml
-│   └── secret.yaml.template
-├── pom.xml                           # Maven config
-├── ARCHITECTURE.md                   # Architecture documentation
-├── agents.md                         # Agent development guide
-└── src/main/docker/                  # Dockerfiles
-    ├── Dockerfile.jvm
-    ├── Dockerfile.native
-    └── Dockerfile.native-micro
+curl -X POST http://localhost:8080/a2a/analyze \
+  -H "Content-Type: application/json" \
+  -d '{
+    "userId": "test",
+    "prompt": "Analyze canary deployment",
+    "context": {
+      "namespace": "default",
+      "podName": "my-app-canary",
+      "repoUrl": "https://github.com/owner/repo",
+      "baseBranch": "main"
+    }
+  }'
 ```
 
 ### Running Tests
 
 ```bash
-# Run unit tests
-mvn test
-
-# Run with coverage
-mvn verify
-
-# Run integration tests
-mvn verify -DskipITs=false
-
-# Run E2E tests (requires cluster)
-./run-e2e-test.sh
+mvn test                          # Unit tests
+mvn verify -DskipITs=false        # Integration tests
 ```
 
-See [src/test/README.md](src/test/README.md) for detailed testing documentation.
+## Building and Deploying
 
-### Building Multi-arch Images
+### Build the Container Image
 
 ```bash
-docker buildx build --platform linux/amd64,linux/arm64 \
-	-t quay.io/kevindubois/kubernetes-agent:latest \
-	--push .
+# Build with Maven + Podman
+mvn clean package -Dquarkus.container-image.build=true -Dquarkus.profile=prod,gemini
+
+# Push to registry
+mvn quarkus:image-push -Dquarkus.container-image.build=true -Dquarkus.profile=prod,gemini
 ```
 
-## Roadmap
+The image is published to `quay.io/danieloh30/kubernetes-agent:latest`.
 
-- [ ] Multi-cluster support
-- [ ] Historical analysis (learn from past incidents)
-- [ ] Cost optimization recommendations
-- [ ] Security vulnerability detection
-- [ ] Self-healing capabilities
-- [ ] Slack/PagerDuty notifications
-- [ ] Advanced code analysis before fixes
+### Deploy to OpenShift
 
-## Contributing
-
-Contributions are welcome! Please:
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests
-5. Submit a pull request
-
-## License
-
-This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
-
-## Additional Documentation
-
-- **[ARCHITECTURE.md](ARCHITECTURE.md)**: Detailed architecture and design decisions
-- **[agents.md](agents.md)**: Comprehensive agent development guide
-- **[src/test/README.md](src/test/README.md)**: Testing documentation and strategies
-
-## Model Support
-
-The agent supports multiple AI models through profile-based configuration:
-
-### Google Gemini (Default)
 ```bash
-mvn quarkus:dev -Dquarkus.profile=dev,gemini
-export GOOGLE_API_KEY="your-key"
-export GEMINI_MODEL="gemini-2.5-flash"  # Optional
+# Create the secret from template
+cp deployment/secret.yaml.template deployment/secret.yaml
+# Edit secret.yaml with your API keys, then:
+kubectl apply -f deployment/secret.yaml
+
+# Deploy all resources
+kubectl apply -k deployment/
+
+# Verify
+kubectl get pods -n openshift-gitops | grep kubernetes-agent
 ```
 
-### OpenAI
-```bash
-mvn quarkus:dev -Dquarkus.profile=dev,openai
-export OPENAI_API_KEY="your-key"
-export OPENAI_MODEL="gpt-4o"  # Optional
-export OPENAI_BASE_URL="https://api.openai.com/v1"  # Optional
+The deployment manifests live in `deployment/` and include:
+- `deployment.yaml` -- Deployment spec
+- `service.yaml` -- ClusterIP Service
+- `rbac.yaml` -- ServiceAccount and RBAC (read-only K8s access)
+- `secret.yaml.template` -- Secret template for API keys
+- `kustomization.yaml` -- Kustomize overlay (namespace: `openshift-gitops`)
+
+## Integration with Argo Rollouts
+
+The agent is designed to work with `rollouts-plugin-metric-ai`, an Argo Rollouts metric plugin that delegates canary analysis to this agent.
+
+### AnalysisTemplate Example
+
+```yaml
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: canary-analysis-with-agent
+spec:
+  metrics:
+    - name: ai-analysis
+      provider:
+        plugin:
+          ai-metric:
+            analysisMode: agent
+            namespace: "{{args.namespace}}"
+            podName: "{{args.canary-pod}}"
+            stablePodLabel: app=rollouts-demo,role=stable
+            canaryPodLabel: app=rollouts-demo,role=canary
 ```
 
-### vLLM (OpenAI-compatible)
-```bash
-mvn quarkus:dev -Dquarkus.profile=dev,openai
-export OPENAI_API_KEY="dummy"
-export OPENAI_BASE_URL="http://vllm-service:8000/v1"
-export OPENAI_MODEL="gemma-2-9b-it"
+When the Argo Rollouts analysis runs, the plugin sends a `POST /a2a/analyze` request to the agent. The agent gathers diagnostics from the cluster, analyzes them with an LLM, and returns a promote/rollback decision. If the decision is to roll back, the agent asynchronously creates a GitHub PR (for code bugs) or a GitHub Issue (for operational problems like memory leaks).
+
+## Project Structure
+
 ```
-
-## Support
-
-For issues or questions:
-- **GitHub Issues**: Create an issue in the repository
-- **Documentation**: See ARCHITECTURE.md and agents.md for detailed information
-
-
+src/main/java/dev/danieloh/rollout/agent/
+  a2a/                   A2A protocol endpoint and agent card
+  agents/                LangChain4j agent interfaces (Diagnostic, Analysis, Scoring, Remediation)
+  k8s/                   Kubernetes tools (pod logs, metrics, events, resources)
+  model/                 Data records (AnalysisResult, KubernetesAgentRequest/Response)
+  remediation/           GitHub PR and Issue creation tools (JGit + GitHub REST API)
+  service/               Response parsing and JSON utilities
+  utils/                 Rate limiter, retry helper, token manager
+  workflow/              Declarative multi-agent workflow (SequenceAgent)
+deployment/              Kubernetes/OpenShift manifests
+```
