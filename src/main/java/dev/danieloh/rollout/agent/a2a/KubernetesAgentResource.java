@@ -516,12 +516,13 @@ public class KubernetesAgentResource {
     private boolean isOperationalIssue(String rootCause) {
         if (rootCause == null || rootCause.isEmpty()) return false;
         String lower = rootCause.toLowerCase();
-        return lower.contains("memory leak") || lower.contains("oom") || lower.contains("out of memory")
+        return lower.contains("memory leak") || lower.contains("memory pressure") || lower.contains("memory usage")
+                || lower.contains("oom") || lower.contains("out of memory")
                 || lower.contains("outofmemory") || lower.contains("resource exhaustion")
                 || lower.contains("cpu throttl") || lower.contains("disk space")
                 || lower.contains("oomkilled") || lower.contains("heap")
                 || lower.contains("gc activity") || lower.contains("garbage collect")
-                || lower.contains("performance degradation");
+                || lower.contains("performance degradation") || lower.contains("instability");
     }
 
     /**
