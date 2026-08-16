@@ -4,6 +4,7 @@ import dev.danieloh.rollout.agent.agents.DiagnosticAgent;
 import dev.danieloh.rollout.agent.model.AnalysisResult;
 import dev.langchain4j.service.MemoryId;
 import dev.langchain4j.service.UserMessage;
+import dev.langchain4j.service.V;
 import dev.langchain4j.agentic.declarative.SequenceAgent;
 
 public interface KubernetesWorkflow {
@@ -18,8 +19,8 @@ public interface KubernetesWorkflow {
     )
     AnalysisResult execute(
         @MemoryId String memoryId,
-        @UserMessage String message,
-        String repoUrl,
-        String baseBranch
+        @UserMessage @V("message") String message,
+        @V("repoUrl") String repoUrl,
+        @V("baseBranch") String baseBranch
     );
 }
