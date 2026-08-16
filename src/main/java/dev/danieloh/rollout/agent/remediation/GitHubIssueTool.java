@@ -8,6 +8,7 @@ import org.eclipse.microprofile.rest.client.inject.RestClient;
 import io.quarkus.logging.Log;
 
 import java.text.MessageFormat;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -142,48 +143,129 @@ public class GitHubIssueTool {
             String diagnosticSummary
     ) {
         if (rootCause == null || rootCause.isEmpty()) {
-            rootCause = "Not available";
+            rootCause = "Under investigation";
         }
-        
-        if (namespace == null) {
-            namespace = "unknown";
-        }
-        
-        if (podName == null) {
-            podName = "unknown";
-        }
-        
-        // Build diagnostic section if available
-        String diagnosticSection = "";
+        if (namespace == null) namespace = "unknown";
+        if (podName == null) podName = "unknown";
+
+        String severity = inferSeverity(rootCause);
+
+        StringBuilder body = new StringBuilder();
+
+        body.append(String.format("**Severity:** %s\n\n", severity));
+
+        body.append("## Summary\n\n");
+        body.append("A canary deployment was **automatically rolled back** after the AI analysis agent ");
+        body.append("detected anomalies in the canary pods compared to stable pods.\n\n");
+
+        body.append("## Root Cause\n\n");
+        body.append(rootCause).append("\n\n");
+
+        body.append("## What Happened\n\n");
+        body.append(description).append("\n\n");
+
         if (diagnosticSummary != null && !diagnosticSummary.isEmpty()) {
-            diagnosticSection = String.format("""
-                
-                ## Diagnostic Information
-                %s
-                """, diagnosticSummary);
+            String extracted = extractStructuredDiagnostics(diagnosticSummary);
+            if (!extracted.isEmpty()) {
+                body.append("## Diagnostics\n\n");
+                body.append(extracted).append("\n\n");
+            }
         }
-        
-        return String.format("""
-            ## Problem Description
-            %s
-            
-            ## Root Cause Analysis
-            %s
-            %s
-            ## Related Kubernetes Resources
-            - **Namespace**: `%s`
-            - **Pod**: `%s`
-            
-            ---
-            *This issue was automatically created by Kubernetes AI Agent*
-            *Please review and take appropriate action*
-            """,
-            description,
-            rootCause,
-            diagnosticSection,
-            namespace,
-            podName
-        );
+
+        body.append("## Environment\n\n");
+        body.append(String.format("| Resource | Value |\n|---|---|\n"));
+        body.append(String.format("| Namespace | `%s` |\n", namespace));
+        body.append(String.format("| Pod | `%s` |\n", podName));
+        body.append(String.format("| Detected by | Kubernetes AI Agent |\n"));
+        body.append(String.format("| Action taken | Canary rollback |\n\n"));
+
+        body.append("## Recommended Actions\n\n");
+        body.append(generateRecommendedActions(rootCause));
+
+        body.append("\n---\n");
+        body.append("*Automatically created by [Kubernetes AI Agent](https://github.com/danieloh30/kubernetes-aiops-agent) — ");
+        body.append("review diagnostics and take action.*\n");
+
+        return body.toString();
+    }
+
+    private String inferSeverity(String rootCause) {
+        String lower = rootCause.toLowerCase();
+        if (lower.contains("oom") || lower.contains("out of memory") || lower.contains("crash")) {
+            return ":red_circle: Critical";
+        }
+        if (lower.contains("timeout") || lower.contains("memory leak") || lower.contains("circuit breaker")
+                || lower.contains("unresponsive") || lower.contains("degradation")) {
+            return ":orange_circle: High";
+        }
+        return ":yellow_circle: Medium";
+    }
+
+    private String generateRecommendedActions(String rootCause) {
+        String lower = rootCause.toLowerCase();
+        StringBuilder actions = new StringBuilder();
+
+        if (lower.contains("timeout") || lower.contains("downstream") || lower.contains("circuit breaker")) {
+            actions.append("- [ ] Check health and logs of the downstream dependency (e.g., `inventory-service`)\n");
+            actions.append("- [ ] Review network policies and service mesh configuration\n");
+            actions.append("- [ ] Verify connection pool and timeout settings\n");
+            actions.append("- [ ] Consider adding circuit breaker / retry with backoff if not present\n");
+            actions.append("- [ ] Check if the downstream service is under-provisioned (CPU/memory limits)\n");
+        } else if (lower.contains("memory") || lower.contains("oom") || lower.contains("heap")) {
+            actions.append("- [ ] Capture a heap dump from a running pod (`jcmd <pid> GC.heap_dump /tmp/heap.hprof`)\n");
+            actions.append("- [ ] Analyze heap dump for large object retention (Eclipse MAT or VisualVM)\n");
+            actions.append("- [ ] Review recent code changes for unclosed resources or growing collections\n");
+            actions.append("- [ ] Check JVM memory settings (`-Xmx`, `-XX:MaxRAMPercentage`)\n");
+            actions.append("- [ ] Monitor GC activity (`-verbose:gc`, `-Xlog:gc*`)\n");
+        } else if (lower.contains("cpu") || lower.contains("throttl")) {
+            actions.append("- [ ] Review CPU requests/limits in the pod spec\n");
+            actions.append("- [ ] Profile the application for CPU-intensive code paths\n");
+            actions.append("- [ ] Check for runaway threads or tight loops\n");
+        } else {
+            actions.append("- [ ] Review canary pod logs for error patterns\n");
+            actions.append("- [ ] Compare canary vs stable pod resource usage\n");
+            actions.append("- [ ] Check recent code or config changes that may have introduced the issue\n");
+        }
+
+        actions.append("- [ ] Re-deploy after fix and monitor canary metrics\n");
+        return actions.toString();
+    }
+
+    private String extractStructuredDiagnostics(String rawDiagnostics) {
+        StringBuilder result = new StringBuilder();
+
+        String[] lines = rawDiagnostics.split("\n");
+        List<String> logLines = new ArrayList<>();
+        boolean inLogSection = false;
+
+        for (String line : lines) {
+            String trimmed = line.trim();
+            if (trimmed.isEmpty()) continue;
+
+            if (trimmed.contains("ERROR") || trimmed.contains("CRITICAL") || trimmed.contains("TIMEOUT")
+                    || trimmed.contains("WARN") || trimmed.contains("Exception")) {
+                logLines.add(trimmed);
+                inLogSection = true;
+            } else if (inLogSection && (trimmed.startsWith("at ") || trimmed.startsWith("Caused by:"))) {
+                logLines.add(trimmed);
+            } else {
+                inLogSection = false;
+            }
+        }
+
+        if (!logLines.isEmpty()) {
+            result.append("<details>\n<summary>Key log lines from canary pods</summary>\n\n```\n");
+            int maxLines = Math.min(logLines.size(), 20);
+            for (int i = 0; i < maxLines; i++) {
+                result.append(logLines.get(i)).append("\n");
+            }
+            if (logLines.size() > 20) {
+                result.append("... (").append(logLines.size() - 20).append(" more lines)\n");
+            }
+            result.append("```\n</details>\n");
+        }
+
+        return result.toString();
     }
     
     /**
