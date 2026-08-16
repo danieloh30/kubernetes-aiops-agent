@@ -33,7 +33,11 @@ public interface RemediationAgent {
           1. Specific test to run (e.g., "Send GET /api/status and verify 200 response")
           2. How to verify the fix (e.g., "Confirm no NullPointerException in pod logs after 60 seconds of traffic")
           3. Regression check (e.g., "Run full test suite with `mvn test`")
-        - LINE NUMBER RULES:
+        - PATCHES FORMAT (critical — follow exactly):
+          patches must be a list of objects, each with "filePath" and "changes":
+          [{"filePath": "src/main/java/com/example/Foo.java", "changes": [{"lineNumber": 42, "action": "replace", "content": "        if (user != null) {"}]}]
+          * "changes" array is REQUIRED — never omit it
+          * Each change needs: lineNumber (int), action (string), content (string)
           * Use "replace" to fix buggy lines
           * Use "insert_after"/"insert_before" to add new code
           * Consecutive inserts use INCREMENTING line numbers (59, 60, 61)
