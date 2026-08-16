@@ -354,14 +354,14 @@ class GitHubIssueToolTest {
         String issueBody = requestCaptor.getValue().body();
 
         // Verify all sections are present
-        assertThat(issueBody).contains("## Problem Description");
+        assertThat(issueBody).contains("## What Happened");
         assertThat(issueBody).contains(description);
-        assertThat(issueBody).contains("## Root Cause Analysis");
+        assertThat(issueBody).contains("## Root Cause");
         assertThat(issueBody).contains(rootCause);
-        assertThat(issueBody).contains("## Related Kubernetes Resources");
-        assertThat(issueBody).contains("**Namespace**: `" + namespace + "`");
-        assertThat(issueBody).contains("**Pod**: `" + podName + "`");
-        assertThat(issueBody).contains("automatically created by Kubernetes AI Agent");
+        assertThat(issueBody).contains("## Environment");
+        assertThat(issueBody).contains("| Namespace | `" + namespace + "` |");
+        assertThat(issueBody).contains("| Pod | `" + podName + "` |");
+        assertThat(issueBody).contains("Automatically created by");
     }
 
     @Test
@@ -400,7 +400,7 @@ class GitHubIssueToolTest {
         GitHubRestClient.CreateIssueRequest request = requestCaptor.getValue();
         String issueBody = request.body();
         
-        assertThat(issueBody).contains("Not available"); // Default root cause
+        assertThat(issueBody).contains("Under investigation"); // Default root cause
         assertThat(issueBody).contains("unknown"); // Default namespace and pod
         assertThat(request.labels()).isEmpty();
         assertThat(request.assignees()).isEmpty();
@@ -559,11 +559,9 @@ class GitHubIssueToolTest {
 
         String issueBody = requestCaptor.getValue().body();
         
-        // Verify diagnostic section is present
-        assertThat(issueBody).contains("## Diagnostic Information");
+        // Verify diagnostic section is present with extracted log lines
+        assertThat(issueBody).contains("## Diagnostics");
         assertThat(issueBody).contains("NullPointerException");
-        assertThat(issueBody).contains("BackOff restarting failed container");
-        assertThat(issueBody).contains("Restart count: 5");
-        assertThat(issueBody).contains("Memory usage: 450Mi/512Mi");
+        assertThat(issueBody).contains("Key log lines from canary pods");
     }
 }
