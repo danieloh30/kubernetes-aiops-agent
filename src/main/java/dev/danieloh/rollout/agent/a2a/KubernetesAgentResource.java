@@ -168,15 +168,18 @@ public class KubernetesAgentResource {
                                 String namespace = reqContext != null ? (String) reqContext.get("namespace") : "default";
                                 String podName = reqContext != null ? (String) reqContext.get("podName") : "unknown";
                                 
+                                String issueTitle = inferIssueTitle(finalResult.rootCause());
+                                String issueLabels = inferIssueLabels(finalResult.rootCause());
+
                                 Map<String, Object> issueResult = gitHubIssueTool.createGitHubIssue(
                                     repoUrl,
-                                    "Memory Leak Detected in Canary Deployment",
+                                    issueTitle,
                                     finalResult.analysis(),
                                     finalResult.rootCause(),
                                     namespace,
                                     podName,
                                     truncatedPrompt,
-                                    "bug,memory-leak,canary-analysis",
+                                    issueLabels,
                                     ""
                                 );
                                 String issueUrl = (String) issueResult.get("issueUrl");
@@ -511,7 +514,42 @@ public class KubernetesAgentResource {
                 || lower.contains("cpu throttl") || lower.contains("disk space")
                 || lower.contains("oomkilled") || lower.contains("heap")
                 || lower.contains("gc activity") || lower.contains("garbage collect")
-                || lower.contains("performance degradation") || lower.contains("instability");
+                || lower.contains("performance degradation") || lower.contains("instability")
+                || lower.contains("timeout") || lower.contains("timed out")
+                || lower.contains("downstream") || lower.contains("circuit breaker")
+                || lower.contains("connection pool") || lower.contains("latency")
+                || lower.contains("unresponsive") || lower.contains("service degradation");
+    }
+
+    private String inferIssueTitle(String rootCause) {
+        if (rootCause == null) return "Operational Issue Detected in Canary Deployment";
+        String lower = rootCause.toLowerCase();
+        if (lower.contains("timeout") || lower.contains("timed out") || lower.contains("downstream")
+                || lower.contains("circuit breaker") || lower.contains("unresponsive")) {
+            return "Downstream Service Timeout Detected in Canary Deployment";
+        }
+        if (lower.contains("memory") || lower.contains("oom") || lower.contains("heap")) {
+            return "Memory Leak Detected in Canary Deployment";
+        }
+        if (lower.contains("cpu") || lower.contains("throttl")) {
+            return "CPU Throttling Detected in Canary Deployment";
+        }
+        if (lower.contains("connection pool") || lower.contains("connection leak")) {
+            return "Connection Pool Exhaustion Detected in Canary Deployment";
+        }
+        return "Operational Issue Detected in Canary Deployment";
+    }
+
+    private String inferIssueLabels(String rootCause) {
+        if (rootCause == null) return "bug,canary-analysis";
+        String lower = rootCause.toLowerCase();
+        if (lower.contains("timeout") || lower.contains("downstream") || lower.contains("circuit breaker")) {
+            return "bug,downstream-timeout,canary-analysis";
+        }
+        if (lower.contains("memory") || lower.contains("oom") || lower.contains("heap")) {
+            return "bug,memory-leak,canary-analysis";
+        }
+        return "bug,canary-analysis";
     }
 
     /**
