@@ -20,8 +20,9 @@ Kubernetes AIOps Agent
   |-- AnalysisAgent: Compares stable vs. canary using thresholds (error rate, p95/p99 latency, success rate)
   |-- ScoringAgent: Evaluates analysis quality; retries if confidence is too low
   |-- RemediationAgent (async, on rollback):
-  |     - Code bug detected  -->  Creates GitHub PR with a patch fix
-  |     - Operational issue  -->  Creates GitHub Issue with RCA
+  |     - Code bug detected       -->  Creates GitHub PR with a patch fix
+  |     - Operational issue (OOM)  -->  Creates GitHub Issue with RCA
+  |     - Operational issue (timeout) --> Creates GitHub Issue with RCA
   v
 JSON response: { promote, confidence, analysis, rootCause, remediation, prLink }
 ```
@@ -172,7 +173,7 @@ spec:
             canaryPodLabel: app=rollouts-demo,role=canary
 ```
 
-When the Argo Rollouts analysis runs, the plugin sends a `POST /a2a/analyze` request to the agent. The agent gathers diagnostics from the cluster, analyzes them with an LLM, and returns a promote/rollback decision. If the decision is to roll back, the agent asynchronously creates a GitHub PR (for code bugs) or a GitHub Issue (for operational problems like memory leaks).
+When the Argo Rollouts analysis runs, the plugin sends a `POST /a2a/analyze` request to the agent. The agent gathers diagnostics from the cluster, analyzes them with an LLM, and returns a promote/rollback decision. If the decision is to roll back, the agent asynchronously creates a GitHub PR (for code bugs) or a GitHub Issue (for operational problems like memory leaks or downstream service timeouts). Issue titles and labels are inferred from the root cause analysis.
 
 ## Project Structure
 
