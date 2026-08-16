@@ -181,22 +181,38 @@ public class GitHubPatchPRTool {
         return rawPatches.stream()
             .map(patchMap -> {
                 String filePath = (String) patchMap.get("filePath");
+                if (filePath == null) filePath = (String) patchMap.get("file_path");
+                if (filePath == null) filePath = (String) patchMap.get("path");
+
                 List<Map<String, Object>> rawChanges = (List<Map<String, Object>>) patchMap.get("changes");
-                
+                if (rawChanges == null) rawChanges = (List<Map<String, Object>>) patchMap.get("lineChanges");
+                if (rawChanges == null) rawChanges = (List<Map<String, Object>>) patchMap.get("line_changes");
+                if (rawChanges == null || rawChanges.isEmpty()) {
+                    Log.warn("Skipping patch with no changes for file: " + filePath);
+                    return new FilePatch(filePath != null ? filePath : "unknown", List.of());
+                }
+
                 List<LineChange> changes = rawChanges.stream()
                     .map(changeMap -> {
-                        int lineNumber = ((Number) changeMap.get("lineNumber")).intValue();
+                        Number lineNum = (Number) changeMap.get("lineNumber");
+                        if (lineNum == null) lineNum = (Number) changeMap.get("line_number");
+                        if (lineNum == null) lineNum = (Number) changeMap.get("line");
+                        int lineNumber = lineNum != null ? lineNum.intValue() : 1;
                         String action = (String) changeMap.get("action");
+                        if (action == null) action = "replace";
                         String content = (String) changeMap.get("content");
-                        return new LineChange(lineNumber, action, content);
+                        if (content == null) content = (String) changeMap.get("newContent");
+                        if (content == null) content = (String) changeMap.get("new_content");
+                        return new LineChange(lineNumber, action, content != null ? content : "");
                     })
                     .collect(Collectors.toList());
                 
                 return new FilePatch(filePath, changes);
             })
+            .filter(fp -> !fp.changes.isEmpty())
             .collect(Collectors.toList());
     }
-    
+
     /**
      * Check if all changes are insert_after operations on consecutive line numbers
      */
