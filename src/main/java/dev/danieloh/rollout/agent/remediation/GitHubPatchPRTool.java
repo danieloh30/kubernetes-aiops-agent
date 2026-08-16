@@ -97,7 +97,11 @@ public class GitHubPatchPRTool {
      * @param testingRecommendations Testing recommendations
      * @return Result of the PR creation
      */
-    @Tool("Create a GitHub pull request using line-based patches. Specify exact line numbers and changes to make. More efficient than providing full file content.")
+    @Tool("""
+        Create a GitHub pull request using line-based patches. \
+        The patches parameter MUST be a JSON array of objects, each with "filePath" (string) and "changes" (array). \
+        Each change object MUST have "lineNumber" (integer), "action" ("replace"|"insert_after"|"insert_before"|"delete"), and "content" (string). \
+        Example: [{"filePath":"src/main/java/com/example/Foo.java","changes":[{"lineNumber":42,"action":"replace","content":"        if (user != null) {"}]}]""")
     public Map<String, Object> createGitHubPRWithPatches(
             String repoUrl,
             List<Map<String, Object>> patches,
@@ -115,7 +119,8 @@ public class GitHubPatchPRTool {
         }
         
         Log.info(MessageFormat.format("Creating PR with patches for repository: {0}", repoUrl));
-        
+        Log.info("Raw patches received: " + patches);
+
         // Convert raw maps to FilePatch objects
         List<FilePatch> filePatchList;
         try {
@@ -123,6 +128,13 @@ public class GitHubPatchPRTool {
         } catch (Exception e) {
             Log.error("Failed to parse patches", e);
             return Map.of("success", false, "error", "Invalid patch format: " + e.getMessage());
+        }
+
+        if (filePatchList.isEmpty()) {
+            return Map.of("success", false, "error",
+                "No valid patches found. Each patch must have a \"filePath\" and a \"changes\" array. "
+                + "Each change needs: {\"lineNumber\": <int>, \"action\": \"replace\", \"content\": \"<new line>\"}. "
+                + "Please retry with the correct format.");
         }
         
         String branchName = "fix/k8s-issue-" + UUID.randomUUID().toString().substring(0, 8);
